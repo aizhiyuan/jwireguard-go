@@ -1,0 +1,319 @@
+package database
+
+import (
+	"database/sql"
+	"errors"
+	"fmt"
+	"log"
+	"strings"
+)
+
+type User struct {
+	UserID     string `json:"user_id"`
+	SerID      string `json:"ser_id"`
+	ParentID   string `json:"parent_id"`
+	UserName   string `json:"user_name"`
+	UserPasswd string `json:"user_passwd"`
+	UserType   int    `json:"user_type"`
+	UserStatus int    `json:"user_status"`
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// 创建用户表
+// ----------------------------------------------------------------------------------------------------------
+func (u *User) CreateUser(db *sql.DB) {
+	if !u.TableExists(db) {
+		createTableSQL := `CREATE TABLE IF NOT EXISTS user (
+            "user_id" TEXT NOT NULL PRIMARY KEY,
+			"ser_id" TEXT,
+            "parent_id" TEXT,
+            "user_name" TEXT NOT NULL,
+			"user_passwd" TEXT NOT NULL,
+			"user_type" INTEGER NOT NULL,
+			"user_status" INTEGER NOT NULL
+        );`
+		_, err := db.Exec(createTableSQL)
+		if err != nil {
+			log.Fatalln("[CreateUser] Error creating table:", err)
+			return
+		}
+		log.Println("[CreateUser] Table 'user' created successfully!")
+	} else {
+		log.Println("[CreateUser] Table 'user' already exists.")
+	}
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// 添加用户表
+// ----------------------------------------------------------------------------------------------------------
+func (u *User) InsertUser(db *sql.DB) error {
+	stmt, err := db.Prepare("INSERT INTO user (user_id, ser_id, parent_id, user_name, user_passwd, user_type, user_status) VALUES(?, ?, ?, ?, ?, ?, ?)")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(u.UserID, u.SerID, u.ParentID, u.UserName, u.UserPasswd, u.UserType, u.UserStatus)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// 通过 UserID 查询用户信息
+// ----------------------------------------------------------------------------------------------------------
+func (u *User) GetUserByID(db *sql.DB) error {
+	query := "SELECT user_id, ser_id, parent_id, user_name, user_passwd, user_type, user_status FROM user WHERE user_id = ?"
+	row := db.QueryRow(query, u.UserID)
+
+	err := row.Scan(&u.UserID, &u.SerID, &u.ParentID, &u.UserName, &u.UserPasswd, &u.UserType, &u.UserStatus)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("User with UserID %s not found", u.UserID)
+		}
+		return err
+	}
+
+	return nil
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// 通过多个 UserID 查询子网信息，去除重复的 ser_id
+// ----------------------------------------------------------------------------------------------------------
+func (u *User) GetSubnetIdsByUserIds(db *sql.DB, userIds []string) ([]string, error) {
+	// 构建查询 user_subnet_map 表以获取子网ID的 SQL 语句
+	placeholders := strings.Repeat("?,", len(userIds))
+	placeholders = placeholders[:len(placeholders)-1] // 去掉最后的逗号
+	query := fmt.Sprintf("SELECT DISTINCT ser_id FROM user WHERE user_id IN (%s)", placeholders)
+
+	// 将 userIds 转换为 interface{} 类型的 slice 以便用于 Exec
+	args := make([]interface{}, len(userIds))
+	for i, id := range userIds {
+		args[i] = id
+	}
+	// fmt.Println("query:", query)
+	// fmt.Println("args:", args)
+	// 执行查询获取子网ID
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var result []string
+	subnetIDSet := make(map[string]struct{}) // 使用 map 记录已扫描的 subnet_id
+	for rows.Next() {
+		var subnetID string
+		if err := rows.Scan(&subnetID); err != nil {
+			return nil, err
+		}
+
+		// 如果字符串已经存在于 map 中，则跳过
+		if _, exists := subnetIDSet[subnetID]; exists {
+			continue
+		}
+
+		subnetIDSet[subnetID] = struct{}{} // 将 subnet_id 添加到 set 中
+		result = append(result, subnetID)
+	}
+
+	// 检查是否有扫描错误
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// 如果没有获取到任何子网ID，则返回空结果
+	if len(subnetIDSet) == 0 {
+		return []string{}, nil
+	}
+
+	return result, nil
+
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// 获取 User 表中的所有数据
+// ----------------------------------------------------------------------------------------------------------
+func (u *User) GetAllUsers(db *sql.DB) ([]User, error) {
+	query := "SELECT user_id, ser_id, parent_id, user_name, user_passwd, user_type, user_status FROM user"
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []User
+	for rows.Next() {
+		var user User
+		err := rows.Scan(&user.UserID, &u.SerID, &user.ParentID, &user.UserName, &user.UserPasswd, &user.UserType, &user.UserStatus)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+
+	// 检查是否有扫描错误
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// 更新表中的部分数据
+// ----------------------------------------------------------------------------------------------------------
+func (u *User) UpdateUsers(db *sql.DB) error {
+	if u.UserID == "" {
+		return errors.New("user_id cannot be empty")
+	}
+
+	// 用于存储 SQL 语句片段和对应参数的切片
+	setClauses := []string{}
+	args := []interface{}{}
+
+	// 动态添加不为空的字段
+	if u.SerID != "" {
+		setClauses = append(setClauses, "ser_id = ?")
+		args = append(args, u.SerID)
+	}
+	if u.ParentID != "" {
+		setClauses = append(setClauses, "parent_id = ?")
+		args = append(args, u.ParentID)
+	}
+	if u.UserName != "" {
+		setClauses = append(setClauses, "user_name = ?")
+		args = append(args, u.UserName)
+	}
+	if u.UserPasswd != "" {
+		setClauses = append(setClauses, "user_passwd = ?")
+		args = append(args, u.UserPasswd)
+	}
+	if u.UserType != -1 {
+		setClauses = append(setClauses, "user_type = ?")
+		args = append(args, u.UserType)
+	}
+	if u.UserStatus != -1 {
+		setClauses = append(setClauses, "user_status = ?")
+		args = append(args, u.UserStatus)
+	}
+
+	// 如果没有任何字段需要更新
+	if len(setClauses) == 0 {
+		return errors.New("no fields to update")
+	}
+
+	// 构建最终的 SQL 语句
+	query := fmt.Sprintf("UPDATE user SET %s WHERE user_id = ?", strings.Join(setClauses, ", "))
+	args = append(args, u.UserID)
+
+	// 准备并执行 SQL 语句
+	stmt, err := db.Prepare(query)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(args...)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// 删除表格中数据
+// ----------------------------------------------------------------------------------------------------------
+func (u *User) DeleteUsers(db *sql.DB) error {
+	stmt, err := db.Prepare("DELETE FROM user WHERE user_id = ?")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(u.UserID)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// 检查表格是否存在
+// ----------------------------------------------------------------------------------------------------------
+func (u *User) TableExists(db *sql.DB) bool {
+	query := "SELECT name FROM sqlite_master WHERE type='table' AND name='user';"
+	var name string
+	err := db.QueryRow(query).Scan(&name)
+	return err == nil
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// 查询符合条件的 user_id
+// ----------------------------------------------------------------------------------------------------------
+func (u *User) QueryUserIds(conn *sql.DB, targetUserId string) ([]string, error) {
+	var userIds []string
+	err := u.queryUserIdsRecursive(conn, targetUserId, &userIds)
+	if err != nil {
+		return nil, err
+	}
+	return userIds, nil
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// 递归查询符合条件的 user_id (私有函数)
+// ----------------------------------------------------------------------------------------------------------
+func (u *User) queryUserIdsRecursive(conn *sql.DB, currentUserId string, userIds *[]string) error {
+	*userIds = append(*userIds, currentUserId)
+
+	// 查询当前 user_id 的子节点
+	rows, err := conn.Query("SELECT user_id FROM user WHERE parent_id = ?", currentUserId)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var childUserId string
+		if err := rows.Scan(&childUserId); err != nil {
+			return err
+		}
+		if err := u.queryUserIdsRecursive(conn, childUserId, userIds); err != nil {
+			return err
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// 登录验证
+// ----------------------------------------------------------------------------------------------------------
+func (u *User) CheckLogin(db *sql.DB) (bool, error) {
+	var userID string
+	// Prepare the SQL query to prevent SQL injection
+	query := "SELECT user_id FROM user WHERE user_name = ? AND user_passwd = ?"
+	err := db.QueryRow(query, u.UserName, u.UserPasswd).Scan(&userID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// No matching record found, return false indicating invalid credentials
+			return false, nil
+		}
+		// Return any other errors that occurred
+		return false, err
+	}
+
+	// Set the UserID in the User struct if login is successful
+	u.UserID = userID
+
+	// Return true indicating a successful login
+	return true, nil
+}

@@ -1,0 +1,10 @@
+client
+nobind
+dev tap
+comp-lzo
+cipher AES-256-CBC
+auth SHA256
+remote-cert-tls server
+topology subnet
+key-direction 1
+remote www.micro-watt.cn 1194 udp

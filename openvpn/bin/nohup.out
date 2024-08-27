@@ -1,0 +1,106 @@
+监听1092端口
+监听1092端口
+Error: Os { code: 98, kind: AddrInUse, message: "Address already in use" }
+监听1092端口
+md5_name_sn:6a9da007ccf0b783b1a6bc870f8ad02d
+/etc/openvpn/server/easy-rsa/update.sh: line 22: [: missing `]'
+Using configuration from /etc/openvpn/server/easy-rsa/pki/easy-rsa-392000.jFFnQa/tmp.toriVN
+Check that the request matches the signature
+Signature ok
+The Subject's Distinguished Name is as follows
+commonName            :ASN.1 12:'239f5dff7b474562f4b6524bf032472e'
+Certificate is to be certified until May  7 06:23:52 2034 GMT (3650 days)
+
+Write out database with 1 new entries
+Data Base Updated
+1
+脚本执行成功
+md5_name_sn:6a9da007ccf0b783b1a6bc870f8ad02d
+脚本执行成功
+md5_name_sn:b6ece94aa1131aabfc070d5fdcfa16c4
+Generating a RSA private key
+...................................................................+++++
+......................+++++
+writing new private key to '/etc/openvpn/server/easy-rsa/pki/easy-rsa-393250.uUxD7m/tmp.uGGipG'
+-----
+You are about to be asked to enter information that will be incorporated
+into your certificate request.
+What you are about to enter is what is called a Distinguished Name or a DN.
+There are quite a few fields but you can leave some blank
+For some fields there will be a default value,
+If you enter '.', the field will be left blank.
+-----
+Common Name (eg: your user, host, or server name) [a9b8cc0ba5cb299f1a1a4d6761e23e48]:Using configuration from /etc/openvpn/server/easy-rsa/pki/easy-rsa-393276.sdTCPL/tmp.avjNpq
+Check that the request matches the signature
+Signature ok
+The Subject's Distinguished Name is as follows
+commonName            :ASN.1 12:'a9b8cc0ba5cb299f1a1a4d6761e23e48'
+Certificate is to be certified until May  7 06:39:49 2034 GMT (3650 days)
+
+Write out database with 1 new entries
+Data Base Updated
+1
+脚本执行成功
+md5_name_sn:b6ece94aa1131aabfc070d5fdcfa16c4
+脚本执行成功
+监听1092端口
+md5_name_sn:2c8b84a53402932a32885c1ab7716f9a
+md5_name_sn:2c8b84a53402932a32885c1ab7716f9a
+0
+脚本执行成功
+md5_name_sn:2c8b84a53402932a32885c1ab7716f9a
+Generating a RSA private key
+......................................................................+++++
+...........................................................................................+++++
+writing new private key to '/etc/openvpn/server/easy-rsa/pki/easy-rsa-561057.7a1SUx/tmp.RNUw0k'
+-----
+You are about to be asked to enter information that will be incorporated
+into your certificate request.
+What you are about to enter is what is called a Distinguished Name or a DN.
+There are quite a few fields but you can leave some blank
+For some fields there will be a default value,
+If you enter '.', the field will be left blank.
+-----
+Common Name (eg: your user, host, or server name) [bcc06b38518eb4a178932f8b627b29cd]:Using configuration from /etc/openvpn/server/easy-rsa/pki/easy-rsa-561083.lwbkZ6/tmp.X2DOaj
+Check that the request matches the signature
+Signature ok
+The Subject's Distinguished Name is as follows
+commonName            :ASN.1 12:'bcc06b38518eb4a178932f8b627b29cd'
+Certificate is to be certified until May  9 04:21:44 2034 GMT (3650 days)
+
+Write out database with 1 new entries
+Data Base Updated
+1
+脚本执行成功
+md5_name_sn:2c8b84a53402932a32885c1ab7716f9a
+脚本执行成功
+md5_name_sn:08f3628090044b1af39f9d8087e3fe0a
+md5_name_sn:08f3628090044b1af39f9d8087e3fe0a
+0
+脚本执行成功
+md5_name_sn:08f3628090044b1af39f9d8087e3fe0a
+Generating a RSA private key
+.+++++
+.........+++++
+writing new private key to '/etc/openvpn/server/easy-rsa/pki/easy-rsa-561656.wc1tLp/tmp.6pnble'
+-----
+You are about to be asked to enter information that will be incorporated
+into your certificate request.
+What you are about to enter is what is called a Distinguished Name or a DN.
+There are quite a few fields but you can leave some blank
+For some fields there will be a default value,
+If you enter '.', the field will be left blank.
+-----
+Common Name (eg: your user, host, or server name) [74fe8de8d31c87dbb426f44ef07c3d6b]:Using configuration from /etc/openvpn/server/easy-rsa/pki/easy-rsa-561682.BqSLpy/tmp.FEzeib
+Check that the request matches the signature
+Signature ok
+The Subject's Distinguished Name is as follows
+commonName            :ASN.1 12:'74fe8de8d31c87dbb426f44ef07c3d6b'
+Certificate is to be certified until May  9 06:27:52 2034 GMT (3650 days)
+
+Write out database with 1 new entries
+Data Base Updated
+1
+脚本执行成功
+md5_name_sn:08f3628090044b1af39f9d8087e3fe0a
+脚本执行成功
