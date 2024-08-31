@@ -44,7 +44,7 @@ func (u *User) CreateUser(db *sql.DB) {
         );`
 		_, err := db.Exec(createTableSQL)
 		if err != nil {
-			log.Fatalln("[CreateUser] Error creating table:", err)
+			log.Println("[CreateUser] Error creating table:", err)
 			return
 		}
 		// log.Println("[CreateUser] Table 'user' created successfully!")

@@ -9,6 +9,8 @@ import (
 	"log"
 	"net"
 	"time"
+
+	"github.com/natefinch/lumberjack"
 )
 
 type UdpRecvData struct {
@@ -67,7 +69,7 @@ func IsDevOnline() {
 					// 将数据更新到数据库中
 					err := person.UpdateCliConfig(global.GlobalDB)
 					if err != nil {
-						log.Fatalf("[IsDevOnline] 无法将客户端ID: [%s]的状态转为false, err:%v", person.CliID.String, err)
+						log.Printf("[IsDevOnline] 无法将客户端ID: [%s]的状态转为false, err:%v", person.CliID.String, err)
 					}
 				}
 			}
@@ -78,6 +80,16 @@ func IsDevOnline() {
 
 // var DB *sql.DB
 func main() {
+	// 日志初始化
+	// 设置日志文件的轮转
+	log.SetOutput(&lumberjack.Logger{
+		Filename:   "/var/log/jwireguard.log", // 日志文件路径
+		MaxSize:    100,                       // 文件大小限制为100MB
+		MaxBackups: 3,                         // 保留10个备份文件
+		MaxAge:     30,                        // 保留日志的最大天数
+		Compress:   true,                      // 启用压缩
+	})
+
 	// 加密密钥
 	global.GlobalEncryptKey = "@junmix61632320."
 	var err error
@@ -159,24 +171,24 @@ func main() {
 	for {
 		n, clientAddr, err := conn.ReadFromUDP(buffer)
 		if err != nil {
-			log.Fatalf("[main] 无法接收到UDP数据, err:%v", err)
+			log.Printf("[main] 无法接收到UDP数据, err:%v", err)
 			continue
 		}
 
 		// 4. 打印接收到的原始消息
 		message := string(buffer[:n])
-		log.Printf("收到来自 %s 的消息: %s", clientAddr.String(), message)
+		log.Printf("[main] 收到来自 %s 的消息: %s", clientAddr.String(), message)
 
 		// 5. 解析 JSON 数据
 		var recvData UdpRecvData
 		err = json.Unmarshal(buffer[:n], &recvData)
 		if err != nil {
-			log.Fatalf("[main] 无法将接收UDP数据转为JSON数据, err:%v", err)
+			log.Printf("[main] 无法将接收UDP数据转为JSON数据, err:%v", err)
 			continue
 		}
 
 		// 6. 打印解析后的数据
-		log.Printf("解析后的数据: %+v", recvData)
+		log.Printf("[main] 解析后的数据: %+v", recvData)
 
 		if recvData.CliStatus == "true" {
 			var sendData UdpSendData
@@ -212,16 +224,17 @@ func main() {
 			// 7. 回复客户端
 			jsonData, err := json.Marshal(sendData)
 			if err != nil {
-				log.Fatalf("[main] 无法将DUP发送数据转为JSON, err:%v", err)
+				log.Printf("[main] 无法将DUP发送数据转为JSON, err:%v", err)
+				continue
 			}
 
 			// 8、返回数据
-			log.Printf("返回数据的数据: %s", string(jsonData))
+			log.Printf("[main] 返回数据的数据: %s", string(jsonData))
 
 			// Send data
 			_, err = conn.WriteToUDP(jsonData, clientAddr)
 			if err != nil {
-				log.Fatalf("[main] 无法将JSON数据使用UDP发送, err:%v", err)
+				log.Printf("[main] 无法将JSON数据使用UDP发送, err:%v", err)
 			}
 		}
 	}

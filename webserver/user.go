@@ -38,7 +38,7 @@ func CheckUsersLogin(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		// 如果参数为空，返回 JSON 错误响应
-		log.Fatalln("[CheckUsersLogin] 请求类型不是Post")
+		log.Println("[CheckUsersLogin] 请求类型不是Post")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
@@ -55,7 +55,7 @@ func CheckUsersLogin(w http.ResponseWriter, r *http.Request) {
 	// 使用封装的parseJSONBody函数解析请求体
 	if err := parseJSONBody(r, &portCheckUserLogin); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		log.Fatalf("[CheckUsersLogin] 解析JSON请求参数错误, err:%v", err)
+		log.Printf("[CheckUsersLogin] 解析JSON请求参数错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
@@ -69,7 +69,7 @@ func CheckUsersLogin(w http.ResponseWriter, r *http.Request) {
 	if portCheckUserLogin.UserName == "" ||
 		portCheckUserLogin.UserPasswd == "" {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Fatalln("[CheckUsersLogin] 请求参数为空")
+		log.Println("[CheckUsersLogin] 请求参数为空")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求参数为空",
@@ -88,7 +88,7 @@ func CheckUsersLogin(w http.ResponseWriter, r *http.Request) {
 	encryptedPasswd, err := global.Encrypt(portCheckUserLogin.UserPasswd, global.GlobalEncryptKey)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Fatalf("[CheckUsersLogin] 密码错误, err:%v", err)
+		log.Printf("[CheckUsersLogin] 密码错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("密码错误, err:%v", err),
@@ -106,7 +106,7 @@ func CheckUsersLogin(w http.ResponseWriter, r *http.Request) {
 	loginStatus, err := dbuser.CheckLogin(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Fatalf("[CheckUsersLogin] 密码错误, err:%v", err)
+		log.Printf("[CheckUsersLogin] 密码错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("密码错误, err:%v", err),
@@ -119,7 +119,7 @@ func CheckUsersLogin(w http.ResponseWriter, r *http.Request) {
 
 	if !loginStatus {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Fatalf("[CheckUsersLogin] 密码错误, err:%v", err)
+		log.Printf("[CheckUsersLogin] 密码错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("密码错误, err:%v", err),
@@ -148,7 +148,7 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		// 如果参数为空，返回 JSON 错误响应
-		log.Fatalf("[AddUser] 请求类型不是Post")
+		log.Printf("[AddUser] 请求类型不是Post")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
@@ -164,7 +164,7 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 	// 使用封装的parseJSONBody函数解析请求体
 	if err := parseJSONBody(r, &exporteUser); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		log.Fatalf("[AddUser] 解析JSON请求参数错误, err:%v", err)
+		log.Printf("[AddUser] 解析JSON请求参数错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
@@ -182,7 +182,7 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 		portUser.SerID.String == "" ||
 		portUser.UserPasswd.String == "" {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Fatalln("[AddUser] 请求参数为空")
+		log.Println("[AddUser] 请求参数为空")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求参数为空",
@@ -205,7 +205,7 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 	err := portUser.GetUserByID(global.GlobalDB)
 	if err == nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Fatalf("[AddUser] 用户已存在, err:%v", err)
+		log.Printf("[AddUser] 用户已存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("用户已存在, err:%v", err),
@@ -220,7 +220,7 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 	encryptedPasswd, err := global.Encrypt(portUser.UserPasswd.String, global.GlobalEncryptKey)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Fatalf("[AddUser] 密码错误, err:%v", err)
+		log.Printf("[AddUser] 密码错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("密码错误, err:%v", err),
@@ -236,7 +236,7 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 	err = portUser.InsertUser(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Fatalf("[AddUser] 添加用户失败, err:%v", err)
+		log.Printf("[AddUser] 添加用户失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("添加用户失败, err:%v", err),
@@ -258,7 +258,7 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 	err = global.ShellAddClient(portUser.UserID.String, userAddr)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Fatalf("[AddUser] 添加用户配置失败, err:%v", err)
+		log.Printf("[AddUser] 添加用户配置失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("添加用户配置失败, err:%v", err),
@@ -281,7 +281,7 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 
 	err = cliConfig.InsertCliConfig(global.GlobalDB)
 	if err != nil {
-		log.Fatalf("[AddUser] 数据库创建客户端失败, err:%v", err)
+		log.Printf("[AddUser] 数据库创建客户端失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("数据库创建客户端失败, err:%v", err),
@@ -308,7 +308,7 @@ func EditUser(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		// 如果参数为空，返回 JSON 错误响应
-		log.Fatalln("[EditUser] 请求类型不是Post")
+		log.Println("[EditUser] 请求类型不是Post")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
@@ -326,7 +326,7 @@ func EditUser(w http.ResponseWriter, r *http.Request) {
 	// 使用封装的parseJSONBody函数解析请求体
 	if err := parseJSONBody(r, &exporteUser); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		log.Fatalf("[EditUser] 解析JSON请求参数错误, err:%v", err)
+		log.Printf("[EditUser] 解析JSON请求参数错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
@@ -341,7 +341,7 @@ func EditUser(w http.ResponseWriter, r *http.Request) {
 
 	if portUser.UserID.String == "" {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Fatalln("[EditUser] 请求参数为空")
+		log.Println("[EditUser] 请求参数为空")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求参数为空",
@@ -361,7 +361,7 @@ func EditUser(w http.ResponseWriter, r *http.Request) {
 	err := portUserbak.GetUserByID(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Fatalf("[EditUser] 用户不存在, err:%v", err)
+		log.Printf("[EditUser] 用户不存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("用户不存在, err:%v", err),
@@ -377,7 +377,7 @@ func EditUser(w http.ResponseWriter, r *http.Request) {
 		encryptedPasswd, err := global.Encrypt(portUser.UserPasswd.String, global.GlobalEncryptKey)
 		if err != nil {
 			// 如果参数为空，返回 JSON 错误响应
-			log.Fatalf("[EditUser] 密码错误, err:%v", err)
+			log.Printf("[EditUser] 密码错误, err:%v", err)
 			responseError := ResponseError{
 				Status:  false,
 				Message: fmt.Sprintf("密码错误, err:%v", err),
@@ -394,7 +394,7 @@ func EditUser(w http.ResponseWriter, r *http.Request) {
 	err = portUser.UpdateUsers(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Fatalf("[EditUser] 用户修改失败, err:%v", err)
+		log.Printf("[EditUser] 用户修改失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("用户修改失败, err:%v", err),
@@ -424,7 +424,7 @@ func DelUser(w http.ResponseWriter, r *http.Request) {
 	// 判断参数是否为空
 	if userID == "" {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Fatalln("[DelUser] 参数为空")
+		log.Println("[DelUser] 参数为空")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "参数为空",
@@ -447,7 +447,7 @@ func DelUser(w http.ResponseWriter, r *http.Request) {
 	err := user.GetUserByID(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Fatalf("[DelUser] 用户不存在, err:%v", err)
+		log.Printf("[DelUser] 用户不存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("用户不存在, err:%v", err),
@@ -462,7 +462,7 @@ func DelUser(w http.ResponseWriter, r *http.Request) {
 	err = user.DeleteUsers(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Fatalf("[DelUser] 用户删除失败, err:%v", err)
+		log.Printf("[DelUser] 用户删除失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("用户删除失败, err:%v", err),
@@ -476,7 +476,7 @@ func DelUser(w http.ResponseWriter, r *http.Request) {
 	// 执行SHELL命令
 	err = global.ShellDelClient(userID)
 	if err != nil {
-		log.Fatalf("[DelUser] 无法删除客户端, err:%v", err)
+		log.Printf("[DelUser] 无法删除客户端, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法删除客户端, err:%v", err),

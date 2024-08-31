@@ -73,7 +73,7 @@ func (c *CliConfig) CreateCliConfig(db *sql.DB) {
         );`
 		_, err := db.Exec(createTableSQL)
 		if err != nil {
-			log.Fatalln("[CreateCliConfig] Error creating table:", err)
+			log.Println("[CreateCliConfig] Error creating table:", err)
 			return
 		}
 		// log.Println("[CreateCliConfig] Table 'cli_config' created successfully!")
@@ -326,7 +326,7 @@ func (c *CliConfig) TableExists(db *sql.DB) bool {
 		if err == sql.ErrNoRows {
 			return false
 		}
-		log.Fatalln("[TableExists] Error checking table existence:", err)
+		log.Println("[TableExists] Error checking table existence:", err)
 		return false
 	}
 

@@ -35,7 +35,7 @@ func (s *Subnet) CreateSubnet(db *sql.DB) {
         );`
 		_, err := db.Exec(createTableSQL)
 		if err != nil {
-			log.Fatalln("[CreateSubnet] Error creating table:", err)
+			log.Println("[CreateSubnet] Error creating table:", err)
 			return
 		}
 		// log.Println("[CreateSubnet] Table 'subnet' created successfully!")
