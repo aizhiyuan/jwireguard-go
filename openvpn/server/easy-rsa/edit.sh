@@ -5,8 +5,8 @@ if [ $# -ne 2 ]; then
     exit
 fi
 
-if [ -f "/etc/openvpn/ccd/$1" ]; then
-    echo "ifconfig-push $2 255.255.255.0" > "/etc/openvpn/ccd/$1"
+if [ -f "../../ccd/$1" ]; then
+    echo "ifconfig-push $2 255.255.255.0" > "../../ccd/$1"
 fi
 echo "1"
 exit

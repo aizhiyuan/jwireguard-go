@@ -9,16 +9,48 @@ import (
 )
 
 type CliConfig struct {
-	CliID      string `json:"cli_id"`
-	SerID      string `json:"ser_id"`
-	CliSN      string `json:"cli_sn"`
-	CliName    string `json:"cli_name"`
-	SerName    string `json:"ser_name"`
-	CliAddress string `json:"cli_address"`
-	CliMapping string `json:"cli_mapping"`
-	CliStatus  string `json:"cli_status"`
-	Timestamp  int64  `json:"ts"`
-	EditStatus string `json:"edit_stauts"`
+	CliID        sql.NullString `json:"cli_id"`
+	SerID        sql.NullString `json:"ser_id"`
+	CliSN        sql.NullString `json:"cli_sn"`
+	CliName      sql.NullString `json:"cli_name"`
+	SerName      sql.NullString `json:"ser_name"`
+	CliAddress   sql.NullString `json:"cli_address"`
+	CliMapping   sql.NullString `json:"cli_mapping"`
+	CliStatus    sql.NullString `json:"cli_status"`
+	Timestamp    sql.NullInt64  `json:"ts"`
+	EditStatus   sql.NullString `json:"edit_stauts"`
+	OnlineStatus sql.NullString `json:"online_status"`
+}
+
+type ExportedCliConfig struct {
+	CliID        string `json:"cli_id"`
+	SerID        string `json:"ser_id"`
+	CliSN        string `json:"cli_sn"`
+	CliName      string `json:"cli_name"`
+	SerName      string `json:"ser_name"`
+	CliAddress   string `json:"cli_address"`
+	CliMapping   string `json:"cli_mapping"`
+	CliStatus    string `json:"cli_status"`
+	Timestamp    int64  `json:"ts"`
+	EditStatus   string `json:"edit_stauts"`
+	OnlineStatus string `json:"online_status"`
+}
+
+// 将 ExportedCliConfig 转换为 CliConfig
+func (exported *ExportedCliConfig) ConvertToCliConfig() CliConfig {
+	return CliConfig{
+		CliID:        sql.NullString{String: exported.CliID, Valid: exported.CliID != ""},
+		SerID:        sql.NullString{String: exported.SerID, Valid: exported.SerID != ""},
+		CliSN:        sql.NullString{String: exported.CliSN, Valid: exported.CliSN != ""},
+		CliName:      sql.NullString{String: exported.CliName, Valid: exported.CliName != ""},
+		SerName:      sql.NullString{String: exported.SerName, Valid: exported.SerName != ""},
+		CliAddress:   sql.NullString{String: exported.CliAddress, Valid: exported.CliAddress != ""},
+		CliMapping:   sql.NullString{String: exported.CliMapping, Valid: exported.CliMapping != ""},
+		CliStatus:    sql.NullString{String: exported.CliStatus, Valid: exported.CliStatus != ""},
+		Timestamp:    sql.NullInt64{Int64: exported.Timestamp, Valid: exported.Timestamp != -1},
+		EditStatus:   sql.NullString{String: exported.EditStatus, Valid: exported.EditStatus != ""},
+		OnlineStatus: sql.NullString{String: exported.OnlineStatus, Valid: exported.OnlineStatus != ""},
+	}
 }
 
 // ----------------------------------------------------------------------------------------------------------
@@ -28,24 +60,42 @@ func (c *CliConfig) CreateCliConfig(db *sql.DB) {
 	if !c.TableExists(db) {
 		createTableSQL := `CREATE TABLE IF NOT EXISTS cli_config (
             "cli_id" TEXT NOT NULL PRIMARY KEY,
-            "ser_id" TEXT NOT NULL,
-			"cli_sn" TEXT NOT NULL,
-			"cli_name" TEXT NOT NULL,
-			"ser_name" TEXT NOT NULL,
-            "cli_address" TEXT NOT NULL,
-			"cli_mapping" TEXT NOT NULL,
-			"cli_status" TEXT NOT NULL,
-			"ts" TEXT NOT NULL,
-			"edit_stauts" TEXT NOT NULL
+            "ser_id" TEXT,
+			"cli_sn" TEXT,
+			"cli_name" TEXT,
+			"ser_name" TEXT,
+            "cli_address" TEXT,
+			"cli_mapping" TEXT,
+			"cli_status" TEXT,
+			"ts" TEXT,
+			"edit_stauts" TEXT,
+			"online_status" TEXT
         );`
 		_, err := db.Exec(createTableSQL)
 		if err != nil {
 			log.Fatalln("[CreateCliConfig] Error creating table:", err)
 			return
 		}
-		log.Println("[CreateCliConfig] Table 'cli_config' created successfully!")
+		// log.Println("[CreateCliConfig] Table 'cli_config' created successfully!")
 	} else {
-		log.Println("[CreateCliConfig] Table 'cli_config' already exists.")
+		// log.Println("[CreateCliConfig] Table 'cli_config' already exists.")
+	}
+}
+
+// ToExported 负责将 CliConfig 转换为 ExportedCliConfig
+func (c *CliConfig) ToExported() ExportedCliConfig {
+	return ExportedCliConfig{
+		CliID:        nullStringToString(c.CliID),
+		SerID:        nullStringToString(c.SerID),
+		CliSN:        nullStringToString(c.CliSN),
+		CliName:      nullStringToString(c.CliName),
+		SerName:      nullStringToString(c.SerName),
+		CliAddress:   nullStringToString(c.CliAddress),
+		CliMapping:   nullStringToString(c.CliMapping),
+		CliStatus:    nullStringToString(c.CliStatus),
+		Timestamp:    nullInt64ToInt64(c.Timestamp),
+		EditStatus:   nullStringToString(c.EditStatus),
+		OnlineStatus: nullStringToString(c.OnlineStatus),
 	}
 }
 
@@ -53,13 +103,13 @@ func (c *CliConfig) CreateCliConfig(db *sql.DB) {
 // 添加用户配置
 // ----------------------------------------------------------------------------------------------------------
 func (c *CliConfig) InsertCliConfig(db *sql.DB) error {
-	stmt, err := db.Prepare("INSERT INTO cli_config (cli_id, ser_id, cli_sn, cli_name, ser_name, cli_address, cli_mapping, cli_status, ts, edit_stauts) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+	stmt, err := db.Prepare("INSERT INTO cli_config (cli_id, ser_id, cli_sn, cli_name, ser_name, cli_address, cli_mapping, cli_status, ts, edit_stauts, online_status) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
-	_, err = stmt.Exec(c.CliID, c.SerID, c.CliSN, c.CliName, c.SerName, c.CliAddress, c.CliMapping, c.CliStatus, c.Timestamp, c.EditStatus)
+	_, err = stmt.Exec(c.CliID.String, c.SerID.String, c.CliSN.String, c.CliName.String, c.SerName.String, c.CliAddress.String, c.CliMapping.String, c.CliStatus.String, c.Timestamp, c.EditStatus.String, c.OnlineStatus.String)
 	if err != nil {
 		return err
 	}
@@ -71,13 +121,13 @@ func (c *CliConfig) InsertCliConfig(db *sql.DB) error {
 // 通过 CliID 查询用户配置
 // ----------------------------------------------------------------------------------------------------------
 func (c *CliConfig) GetCliConfigByCliID(db *sql.DB) error {
-	query := "SELECT cli_id, ser_id, cli_sn, cli_name, ser_name, cli_address, cli_mapping, cli_status, ts, edit_stauts FROM cli_config WHERE cli_id = ?"
-	row := db.QueryRow(query, c.CliID)
+	query := "SELECT cli_id, ser_id, cli_sn, cli_name, ser_name, cli_address, cli_mapping, cli_status, ts, edit_stauts, online_status FROM cli_config WHERE cli_id = ?"
+	row := db.QueryRow(query, c.CliID.String)
 
-	err := row.Scan(&c.CliID, &c.SerID, &c.CliSN, &c.CliName, &c.SerName, &c.CliAddress, &c.CliMapping, &c.CliStatus, &c.Timestamp, &c.EditStatus)
+	err := row.Scan(&c.CliID, &c.SerID, &c.CliSN, &c.CliName, &c.SerName, &c.CliAddress, &c.CliMapping, &c.CliStatus, &c.Timestamp, &c.EditStatus, &c.OnlineStatus)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return fmt.Errorf("CliConfig with CliID %s not found", c.CliID)
+			return fmt.Errorf("CliConfig with CliID %s not found", c.CliID.String)
 		}
 		return err
 	}
@@ -89,8 +139,8 @@ func (c *CliConfig) GetCliConfigByCliID(db *sql.DB) error {
 // 通过 SerID 查询用户配置
 // ----------------------------------------------------------------------------------------------------------
 func (c *CliConfig) GetCliConfigBySerID(db *sql.DB) ([]CliConfig, error) {
-	query := "SELECT cli_id, ser_id, cli_sn, cli_name, ser_name, cli_address, cli_mapping, cli_status, ts, edit_stauts FROM cli_config WHERE ser_id = ?"
-	rows, err := db.Query(query, c.SerID) // 使用 db.Query 代替 db.QueryRow
+	query := "SELECT cli_id, ser_id, cli_sn, cli_name, ser_name, cli_address, cli_mapping, cli_status, ts, edit_stauts, online_status FROM cli_config WHERE ser_id = ?"
+	rows, err := db.Query(query, c.SerID.String) // 使用 db.Query 代替 db.QueryRow
 	if err != nil {
 		return nil, err
 	}
@@ -110,6 +160,7 @@ func (c *CliConfig) GetCliConfigBySerID(db *sql.DB) ([]CliConfig, error) {
 			&config.CliStatus,
 			&config.Timestamp,
 			&config.EditStatus,
+			&config.OnlineStatus,
 		)
 		if err != nil {
 			return nil, err
@@ -129,7 +180,7 @@ func (c *CliConfig) GetCliConfigBySerID(db *sql.DB) ([]CliConfig, error) {
 // 获取 CliConfig 表中的所有数据
 // ----------------------------------------------------------------------------------------------------------
 func (c *CliConfig) GetAllCliConfig(db *sql.DB) ([]CliConfig, error) {
-	query := "SELECT cli_id, ser_id, cli_sn, cli_name, ser_name, cli_address, cli_mapping, cli_status, ts, edit_stauts FROM cli_config"
+	query := "SELECT cli_id, ser_id, cli_sn, cli_name, ser_name, cli_address, cli_mapping, cli_status, ts, edit_stauts, online_status FROM cli_config"
 	rows, err := db.Query(query) // 使用 db.Query 代替 db.QueryRow
 	if err != nil {
 		return nil, err
@@ -150,6 +201,7 @@ func (c *CliConfig) GetAllCliConfig(db *sql.DB) ([]CliConfig, error) {
 			&config.CliStatus,
 			&config.Timestamp,
 			&config.EditStatus,
+			&config.OnlineStatus,
 		)
 		if err != nil {
 			return nil, err
@@ -169,7 +221,7 @@ func (c *CliConfig) GetAllCliConfig(db *sql.DB) ([]CliConfig, error) {
 // 更新用户配置中的部分数据
 // ----------------------------------------------------------------------------------------------------------
 func (c *CliConfig) UpdateCliConfig(db *sql.DB) error {
-	if c.CliID == "" {
+	if c.CliID.String == "" {
 		return errors.New("cli_id cannot be empty")
 	}
 
@@ -178,41 +230,45 @@ func (c *CliConfig) UpdateCliConfig(db *sql.DB) error {
 	args := []interface{}{}
 
 	// 动态添加不为空的字段
-	if c.SerID != "" {
+	if c.SerID.String != "" {
 		setClauses = append(setClauses, "ser_id = ?")
-		args = append(args, c.SerID)
+		args = append(args, c.SerID.String)
 	}
-	if c.CliSN != "" {
+	if c.CliSN.String != "" {
 		setClauses = append(setClauses, "cli_sn = ?")
-		args = append(args, c.CliSN)
+		args = append(args, c.CliSN.String)
 	}
-	if c.CliName != "" {
+	if c.CliName.String != "" {
 		setClauses = append(setClauses, "cli_name = ?")
-		args = append(args, c.CliName)
+		args = append(args, c.CliName.String)
 	}
-	if c.SerName != "" {
+	if c.SerName.String != "" {
 		setClauses = append(setClauses, "ser_name = ?")
-		args = append(args, c.SerName)
+		args = append(args, c.SerName.String)
 	}
-	if c.CliAddress != "" {
+	if c.CliAddress.String != "" {
 		setClauses = append(setClauses, "cli_address = ?")
-		args = append(args, c.CliAddress)
+		args = append(args, c.CliAddress.String)
 	}
-	if c.CliMapping != "" {
+	if c.CliMapping.String != "" {
 		setClauses = append(setClauses, "cli_mapping = ?")
-		args = append(args, c.CliMapping)
+		args = append(args, c.CliMapping.String)
 	}
-	if c.CliStatus != "" {
+	if c.CliStatus.String != "" {
 		setClauses = append(setClauses, "cli_status = ?")
-		args = append(args, c.CliStatus)
+		args = append(args, c.CliStatus.String)
 	}
-	if c.Timestamp != 0 {
+	if c.Timestamp.Int64 != 0 {
 		setClauses = append(setClauses, "ts = ?")
-		args = append(args, c.Timestamp)
+		args = append(args, c.Timestamp.Int64)
 	}
-	if c.EditStatus != "" {
+	if c.EditStatus.String != "" {
 		setClauses = append(setClauses, "edit_stauts = ?")
-		args = append(args, c.EditStatus)
+		args = append(args, c.EditStatus.String)
+	}
+	if c.OnlineStatus.String != "" {
+		setClauses = append(setClauses, "online_status = ?")
+		args = append(args, c.OnlineStatus.String)
 	}
 
 	// 如果没有任何字段需要更新
@@ -222,7 +278,7 @@ func (c *CliConfig) UpdateCliConfig(db *sql.DB) error {
 
 	// 构建最终的 SQL 语句
 	query := fmt.Sprintf("UPDATE cli_config SET %s WHERE cli_id = ?", strings.Join(setClauses, ", "))
-	args = append(args, c.CliID)
+	args = append(args, c.CliID.String)
 
 	// 准备并执行 SQL 语句
 	stmt, err := db.Prepare(query)
@@ -249,7 +305,7 @@ func (c *CliConfig) DeleteCliConfig(db *sql.DB) error {
 	}
 	defer stmt.Close()
 
-	_, err = stmt.Exec(c.CliID)
+	_, err = stmt.Exec(c.CliID.String)
 	if err != nil {
 		return err
 	}

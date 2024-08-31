@@ -10,14 +10,13 @@ import (
 	"jwireguard/global"
 	"log"
 	"net/http"
-	"os/exec"
 	"time"
 )
 
 type ResponseSubNetworkList struct {
-	Status  bool              `json:"status"`
-	Message string            `json:"message"`
-	Data    []database.Subnet `json:"data"`
+	Status  bool                      `json:"status"`
+	Message string                    `json:"message"`
+	Data    []database.ExportedSubnet `json:"data"`
 }
 
 type ResponseCliConfig struct {
@@ -29,15 +28,15 @@ type ResponseCliConfig struct {
 }
 
 type ResponseCliList struct {
-	Status  bool                 `json:"status"`
-	Message string               `json:"message"`
-	Data    []database.CliConfig `json:"data"`
+	Status  bool                         `json:"status"`
+	Message string                       `json:"message"`
+	Data    []database.ExportedCliConfig `json:"data"`
 }
 
 type ResponseCliInfo struct {
-	Status  bool               `json:"status"`
-	Message string             `json:"message"`
-	Data    database.CliConfig `json:"data"`
+	Status  bool                       `json:"status"`
+	Message string                     `json:"message"`
+	Data    database.ExportedCliConfig `json:"data"`
 }
 
 type PostCliConfig struct {
@@ -77,17 +76,18 @@ func registerCliRoutes() {
 }
 
 func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
-
+	log.Println("[GetSubNetworkList] start")
 	// 解析 URL 参数
 	query := r.URL.Query()
 	userId := query.Get("user_id")
 
 	// 判断参数是否为空
 	if userId == "" {
+		log.Fatalln("[GetSubNetworkList] 参数为空")
 		// 如果参数为空，返回 JSON 错误响应
 		responseError := ResponseError{
 			Status:  false,
-			Message: "参数为空!",
+			Message: "参数为空",
 			Error:   1,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -105,10 +105,11 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 	// 遍历用户表
 	userIds, err := user.QueryUserIds(global.GlobalDB, userId)
 	if err != nil {
+		log.Fatalf("[GetSubNetworkList] 无法获取用户, err:%v", err)
 		// 如果参数为空，返回 JSON 错误响应
 		responseError := ResponseError{
 			Status:  false,
-			Message: fmt.Sprintln("无法获取用户:", err),
+			Message: fmt.Sprintf("无法获取用户, err:%v", err),
 			Error:   2,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -117,6 +118,7 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(userIds) <= 0 {
+		log.Fatalln("[GetSubNetworkList] 用户列表为空")
 		// 如果参数为空，返回 JSON 错误响应
 		responseError := ResponseError{
 			Status:  false,
@@ -127,13 +129,15 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(responseError)
 		return
 	}
+	// fmt.Println("Ids:", userIds)
 	// 遍历子网表
 	serIds, err := user.GetSubnetIdsByUserIds(global.GlobalDB, userIds)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[GetSubNetworkList] 无法获取子网序号组, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: fmt.Sprintln("无法获取子网序号组:", err),
+			Message: fmt.Sprintf("无法获取子网序号组, err:%v", err),
 			Error:   4,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -143,6 +147,7 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 
 	if len(serIds) <= 0 {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalln("[GetSubNetworkList] 子网列表为空")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "子网列表为空",
@@ -157,9 +162,10 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 	subnets, err := subnet.GetSubnetBySerIDs(global.GlobalDB, serIds)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[GetSubNetworkList] 无法获取子网列表, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: fmt.Sprintln("无法获取子网列表:", err),
+			Message: fmt.Sprintf("无法获取子网列表, err:%v", err),
 			Error:   6,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -169,6 +175,7 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 
 	if len(subnets) <= 0 {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalln("[GetSubNetworkList] 子网列表为空")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "子网列表为空",
@@ -179,20 +186,23 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	exportedSubnets := database.ConvertSubnets(subnets)
+
 	// 设置返回结构体
 	responseSubNetworkList := ResponseSubNetworkList{
 		Status:  true,
 		Message: "获取子网列表成功",
-		Data:    subnets,
+		Data:    exportedSubnets,
 	}
 
 	// 将JSON对象转为字符串
 	jsonData, err := json.Marshal(responseSubNetworkList)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[GetSubNetworkList] 无法将JSON对象转为字符串, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: fmt.Sprintln("无法将JSON对象转为字符串:", err),
+			Message: fmt.Sprintf("无法将JSON对象转为字符串, err:%v", err),
 			Error:   6,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -208,6 +218,7 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetCliConfig(w http.ResponseWriter, r *http.Request) {
+	log.Println("[GetCliConfig] start")
 	// 解析 URL 参数
 	query := r.URL.Query()
 	cliId := query.Get("cli_id")
@@ -215,9 +226,10 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 	// 判断参数是否为空
 	if cliId == "" {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalln("[GetCliConfig] 参数为空")
 		responseError := ResponseError{
 			Status:  false,
-			Message: "参数为空!",
+			Message: "参数为空",
 			Error:   1,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -225,36 +237,63 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	scriptPath := fmt.Sprintf("%s/server/easy-rsa/client.sh", global.GlobalJWireGuardini.OpenVpnPath)
+	headClient := fmt.Sprintf("%s/openvpn.txt", global.GlobalOpenVPNPath.ConfigPath)
+	caClient := fmt.Sprintf("%s/ca.crt", global.GlobalOpenVPNPath.PkiPath)
+	taClient := fmt.Sprintf("%s/ta.key", global.GlobalOpenVPNPath.PkiPath)
+	ovpnClient := fmt.Sprintf("%s/%s.ovpn", global.GlobalOpenVPNPath.ConfigPath, cliId)
+	privateClient := fmt.Sprintf("%s/%s.key", global.GlobalOpenVPNPath.PrivatePath, cliId)
+	issuedClient := fmt.Sprintf("%s/%s.crt", global.GlobalOpenVPNPath.IssuedPath, cliId)
 
-	cmd := exec.Command("/bin/bash", scriptPath, cliId)
+	// Define file paths
+	files := map[string]string{
+		"key":      privateClient,
+		"cert":     issuedClient,
+		"ca":       caClient,
+		"tls-auth": taClient,
+	}
 
-	// 执行SHELL命令
-	output, err := cmd.CombinedOutput()
+	for _, file := range files {
+		if !global.CheckFileExists(file) {
+			log.Fatalf("[GetCliConfig] 该%s文件不存在", file)
+			responseError := ResponseError{
+				Status:  false,
+				Message: fmt.Sprintf("该%s文件不存在", file),
+				Error:   2,
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(responseError)
+			return
+		}
+	}
+
+	// Create the .ovpn file
+
+	err := global.CreateOVPNFile(headClient, ovpnClient, files)
 	if err != nil {
-		log.Fatalf("[GetCliConfig] 无法执行 [%s %s] 错误: %v 执行输出: %s", scriptPath, cliId, err, output)
+		log.Fatalf("[GetCliConfig] 无法合成%s.ovpn, err:%v", cliId, err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "无法执行client.sh脚本!",
+			Message: fmt.Sprintf("无法合成%s.ovpn, err:%v", cliId, err),
 			Error:   2,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
 		return
 	}
+
 	// 创建用户配置
 	var cliConfig = database.CliConfig{}
 	// 初始化
 	cliConfig.CreateCliConfig(global.GlobalDB)
 
 	// 获取配置
-	cliConfig.CliID = cliId
+	cliConfig.CliID.String = cliId
 	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
-		log.Fatalln("[GetCliConfig] 获取客户端配置失败 ", err)
+		log.Fatalf("[GetCliConfig] 获取客户端配置失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "获取客户端配置失败!",
+			Message: fmt.Sprintf("获取客户端配置失败, err:%v", err),
 			Error:   3,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -262,12 +301,11 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// 检查配置文件是否存在
-	cliConfigPath := fmt.Sprintf("%s/client/%s.ovpn", global.GlobalJWireGuardini.OpenVpnPath, cliId)
-	if !global.CheckFileExists(cliConfigPath) {
-		log.Fatalf("[GetCliConfig] 获取客户端配置不存在")
+	if !global.CheckFileExists(ovpnClient) {
+		log.Fatalln("[GetCliConfig] 客户端配置不存在")
 		responseError := ResponseError{
 			Status:  false,
-			Message: "客户端配置不存在!",
+			Message: "客户端配置不存在",
 			Error:   4,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -275,13 +313,12 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cliConfigText, err := ioutil.ReadFile(cliConfigPath)
+	cliConfigText, err := ioutil.ReadFile(ovpnClient)
 	if err != nil {
-		log.Fatalf("客户端配置读取失败: %v", err)
-
+		log.Fatalf("[GetCliConfig] 客户端配置读取失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "客户端配置读取失败!",
+			Message: fmt.Sprintf("客户端配置读取失败, err:%v", err),
 			Error:   5,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -296,7 +333,7 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 	responseCliConfig := ResponseCliConfig{
 		Status:  true,
 		Message: "获取客户端配置成功!",
-		Address: cliConfig.CliAddress,
+		Address: cliConfig.CliAddress.String,
 		Data:    cliConfigBase64,
 		MD5:     cliConfigMd5,
 	}
@@ -305,9 +342,10 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 	jsonData, err := json.Marshal(responseCliConfig)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[GetCliConfig] 无法将JSON对象转为字符串, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: fmt.Sprintln("无法将JSON对象转为字符串:", err),
+			Message: fmt.Sprintf("无法将JSON对象转为字符串, err:%v", err),
 			Error:   6,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -321,6 +359,7 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetCliList(w http.ResponseWriter, r *http.Request) {
+	log.Println("[GetCliList] start")
 	// 解析 URL 参数
 	query := r.URL.Query()
 	serId := query.Get("ser_id")
@@ -328,9 +367,10 @@ func GetCliList(w http.ResponseWriter, r *http.Request) {
 	// 判断参数是否为空
 	if serId == "" {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalln("[GetCliList] 参数为空")
 		responseError := ResponseError{
 			Status:  false,
-			Message: "参数为空!",
+			Message: "参数为空",
 			Error:   1,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -343,12 +383,13 @@ func GetCliList(w http.ResponseWriter, r *http.Request) {
 	// 初始化
 	cliConfig.CreateCliConfig(global.GlobalDB)
 	// 获取用户配置
-	cliConfig.SerID = serId
+	cliConfig.SerID.String = serId
 	cliConfigs, err := cliConfig.GetCliConfigBySerID(global.GlobalDB)
 	if err != nil {
+		log.Fatalf("[GetCliList] 获取客户端列表失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "获取客户端列表失败!",
+			Message: fmt.Sprintf("获取客户端列表失败, err:%v", err),
 			Error:   2,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -356,10 +397,13 @@ func GetCliList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	exportedCliConfigs := database.ConvertCliConfigs(cliConfigs)
+
 	if len(cliConfigs) <= 0 {
+		log.Fatalln("[GetCliList] 客户端列表为空")
 		responseError := ResponseError{
 			Status:  false,
-			Message: "客户端列表为空!",
+			Message: "客户端列表为空",
 			Error:   3,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -370,16 +414,17 @@ func GetCliList(w http.ResponseWriter, r *http.Request) {
 	responseCliList := ResponseCliList{
 		Status:  true,
 		Message: "获取客户端列表成功!",
-		Data:    cliConfigs,
+		Data:    exportedCliConfigs,
 	}
 
 	// 将JSON对象转为字符串
 	jsonData, err := json.Marshal(responseCliList)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[GetCliList] 无法将JSON对象转为字符串, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: fmt.Sprintln("无法将JSON对象转为字符串:", err),
+			Message: fmt.Sprintf("无法将JSON对象转为字符串, err:%v", err),
 			Error:   4,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -393,17 +438,18 @@ func GetCliList(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetCliInfo(w http.ResponseWriter, r *http.Request) {
+	log.Println("[GetCliInfo] start")
 	// 解析 URL 参数
-
 	query := r.URL.Query()
 	cliId := query.Get("cli_id")
 
 	// 判断参数是否为空
 	if cliId == "" {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalln("[GetCliList] 参数为空")
 		responseError := ResponseError{
 			Status:  false,
-			Message: "参数为空!",
+			Message: "参数为空",
 			Error:   1,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -416,29 +462,32 @@ func GetCliInfo(w http.ResponseWriter, r *http.Request) {
 	// 初始化
 	cliConfig.CreateCliConfig(global.GlobalDB)
 	// 获取用户配置
-	cliConfig.CliID = cliId
+	cliConfig.CliID.String = cliId
 
 	err := cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
+		log.Fatalf("[GetCliList] 获取客户端信息失败!, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "获取客户端信息失败!",
+			Message: fmt.Sprintf("获取客户端信息失败!, err:%v", err),
 			Error:   2,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
 		return
 	}
+
 	responseCliInfo := ResponseCliInfo{
 		Status:  true,
 		Message: "获取客户端列表成功!",
-		Data:    cliConfig,
+		Data:    cliConfig.ToExported(),
 	}
 
 	// 将JSON对象转为字符串
 	jsonData, err := json.Marshal(responseCliInfo)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[GetCliList] 无法将JSON对象转为字符串:", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintln("无法将JSON对象转为字符串:", err),
@@ -452,14 +501,15 @@ func GetCliInfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(jsonData)
+
 }
 
 func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
-
+	log.Println("[AddCLiConfig] start")
 	// 确保请求方法是POST
 	if r.Method != http.MethodPost {
-		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalln("[AddCLiConfig] 请求类型不是Post")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
@@ -476,9 +526,10 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 	// 使用封装的parseJSONBody函数解析请求体
 	if err := parseJSONBody(r, &portCliConfig); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Fatalf("[AddCLiConfig] 解析JSON请求参数错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "解析JSON请求参数错误",
+			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
 			Error:   2,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -493,9 +544,10 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 		portCliConfig.CliSN == "" ||
 		portCliConfig.CliKey == "" {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalln("[AddCLiConfig] 请求参数为空")
 		responseError := ResponseError{
 			Status:  false,
-			Message: "请求参数为空!",
+			Message: "请求参数为空",
 			Error:   3,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -508,6 +560,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 	// 计算CliKeyString
 	cliKeyString := fmt.Sprintf("%s%s", serNameSHA3, portCliConfig.CliSN)
 	cliKeyValue := global.GenerateMD5(cliKeyString)
+	log.Fatalln("[AddCLiConfig] KEY值校验错误")
 	if cliKeyValue != portCliConfig.CliKey {
 		responseError := ResponseError{
 			Status:  false,
@@ -528,12 +581,13 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 	cliConfig.CreateCliConfig(global.GlobalDB)
 
 	// 查看客户端是否存在
-	cliConfig.CliID = portCliConfig.CliID
+	cliConfig.CliID.String = portCliConfig.CliID
 	err := cliConfig.GetCliConfigByCliID(global.GlobalDB)
-	if err != nil {
+	if err == nil {
+		log.Fatalf("[AddCLiConfig] 客户端已存在!, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "客户端已存在",
+			Message: fmt.Sprintf("客户端已存在!, err:%v", err),
 			Error:   5,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -542,35 +596,49 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 查询子网是否存在
-	subnet.SerID = serNameSHA3
+	subnet.SerID.String = serNameSHA3
 	err = subnet.GetSubnetBySerId(global.GlobalDB)
 	if err != nil {
 		//获取新的网段
 		newSubNum, err := subnet.GetNewSubnetNumber(global.GlobalDB)
 		if err != nil {
+			log.Fatalf("[AddCLiConfig] 子网网段已满, err:%v", err)
 			responseError := ResponseError{
 				Status:  false,
-				Message: "子网网段已满",
+				Message: fmt.Sprintf("子网网段已满, err:%v", err),
 				Error:   6,
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(responseError)
 			return
 		}
-		subnet.SerNum = newSubNum
-		subnet.CliNum = 1
-		subnet.SerName = portCliConfig.SerName
+		subnet.SerNum.Int32 = newSubNum
+		subnet.CliNum.Int32 = 1
+		subnet.SerName.String = portCliConfig.SerName
+		err = subnet.InsertSubnet(global.GlobalDB)
+		if err != nil {
+			log.Fatalf("[AddCLiConfig] 子网添加失败, err:%v", err)
+			responseError := ResponseError{
+				Status:  false,
+				Message: fmt.Sprintf("子网添加失败, err:%v", err),
+				Error:   7,
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(responseError)
+			return
+		}
 		// subnet.UserID = global.GlobalDefaultUserMd5
 	}
 
 	// 查看客户端在数据中是否存在
-	cliConfig.CliID = portCliConfig.CliID
+	cliConfig.CliID.String = portCliConfig.CliID
 	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err == nil {
+		log.Fatalf("[AddCLiConfig] 客户端已存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "客户端已存在",
-			Error:   7,
+			Message: fmt.Sprintf("客户端已存在, err:%v", err),
+			Error:   8,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -578,88 +646,53 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 获取客户端可用的IP地址
-	ipPrefix := fmt.Sprintf("%s.%d", global.GlobalJWireGuardini.IPPrefix, subnet.SerNum)
-	ccdPath := fmt.Sprintf("%s/ccd", global.GlobalJWireGuardini.OpenVpnPath)
-	cliAddress, err := FindUnusedIP(ccdPath, ipPrefix)
+	ipPrefix := fmt.Sprintf("%s.%d", global.GlobalJWireGuardini.IPPrefix, subnet.SerNum.Int32)
+	cliAddress, err := FindUnusedIP(global.GlobalOpenVPNPath.CcdPath, ipPrefix)
 	if err != nil {
+		log.Fatalf("[AddCLiConfig] 无法获取到当前可用的客户端IP, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "无法获取到当前可用的客户端IP",
-			Error:   8,
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responseError)
-		return
-	}
-	// fmt.Println("cliAddress：", cliAddress)
-	cliConfig.CliAddress = cliAddress
-
-	ovpnClient := fmt.Sprintf("%s/client/%s.ovpn", global.GlobalJWireGuardini.OpenVpnPath, portCliConfig.CliID)
-	ccdClient := fmt.Sprintf("%s/ccd/%s", global.GlobalJWireGuardini.OpenVpnPath, portCliConfig.CliID)
-	privateClient := fmt.Sprintf("%s/server/easy-rsa/pki/private/%s.key", global.GlobalJWireGuardini.OpenVpnPath, portCliConfig.CliID)
-	reqsClient := fmt.Sprintf("%s/server/easy-rsa/pki/reqs/%s.req", global.GlobalJWireGuardini.OpenVpnPath, portCliConfig.CliID)
-	issuedClient := fmt.Sprintf("%s/server/easy-rsa/issued/private/%s.crt", global.GlobalJWireGuardini.OpenVpnPath, portCliConfig.CliID)
-	// log.Println("ovpnClient: ", ovpnClient)
-	// log.Println("ccdClient: ", ccdClient)
-	// log.Println("privateClient: ", privateClient)
-	// log.Println("reqsClient: ", reqsClient)
-	// log.Println("issuedClient: ", issuedClient)
-
-	// 添加客户端
-	clientAddSh := fmt.Sprintf("%s/server/easy-rsa/add.sh", global.GlobalJWireGuardini.OpenVpnPath)
-	// log.Println("clientAddSh: ", clientAddSh)
-	cmd := exec.Command("/bin/bash", clientAddSh, portCliConfig.CliID, cliAddress)
-
-	// 执行SHELL命令
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		log.Fatalf("[GetCliConfig] 无法执行 [%s %s %s] 错误: %v 执行输出: %s", clientAddSh, portCliConfig.CliID, cliAddress, err, output)
-		responseError := ResponseError{
-			Status:  false,
-			Message: "无法执行add.sh脚本!",
+			Message: fmt.Sprintf("无法获取到当前可用的客户端IP, err:%v", err),
 			Error:   9,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
 		return
 	}
-	// log.Printf("Output:\n%s", output)
-	if (!global.CheckFileExists(privateClient)) ||
-		(!global.CheckFileExists(reqsClient)) ||
-		(!global.CheckFileExists(issuedClient)) {
+	// fmt.Println("cliAddress：", cliAddress)
+	cliConfig.CliAddress.String = cliAddress
+
+	// 添加客户端
+	err = global.ShellAddClient(portCliConfig.CliID, cliAddress)
+	if err != nil {
+		log.Fatalf("[AddCLiConfig] 无法添加客户端, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "文件中创建客户端失败!",
+			Message: fmt.Sprintf("无法添加客户端, err:%v", err),
 			Error:   10,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
-
-		// 删除错误客户端文件
-		global.DeleteFileIfExists(ovpnClient)
-		global.DeleteFileIfExists(ccdClient)
-		global.DeleteFileIfExists(privateClient)
-		global.DeleteFileIfExists(reqsClient)
-		global.DeleteFileIfExists(issuedClient)
-
 		return
 	}
 
-	cliConfig.CliName = portCliConfig.CliName
-	cliConfig.CliMapping = ""
-	cliConfig.CliStatus = "false"
-	cliConfig.EditStatus = "false"
-	cliConfig.CliSN = portCliConfig.CliSN
-	cliConfig.SerID = serNameSHA3
-	cliConfig.SerName = portCliConfig.SerName
-	cliConfig.Timestamp = time.Now().Unix()
+	cliConfig.CliName.String = portCliConfig.CliName
+	cliConfig.CliMapping.String = ""
+	cliConfig.CliStatus.String = "false"
+	cliConfig.EditStatus.String = "false"
+	cliConfig.CliSN.String = portCliConfig.CliSN
+	cliConfig.SerID.String = serNameSHA3
+	cliConfig.SerName.String = portCliConfig.SerName
+	cliConfig.Timestamp.Int64 = time.Now().Unix()
+	cliConfig.OnlineStatus.String = "true"
 
 	err = cliConfig.InsertCliConfig(global.GlobalDB)
 	if err != nil {
+		log.Fatalf("[AddCLiConfig] 数据库创建客户端失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "数据库创建客户端失败!",
-			Error:   10,
+			Message: fmt.Sprintf("数据库创建客户端失败, err:%v", err),
+			Error:   17,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -675,9 +708,11 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
+	log.Println("[UpdateCliConfig] start")
 	// 确保请求方法是POST
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
+		log.Fatalln("[UpdateCliConfig] 请求类型不是Post")
 		// 如果参数为空，返回 JSON 错误响应
 		responseError := ResponseError{
 			Status:  false,
@@ -695,9 +730,10 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 	// 使用封装的parseJSONBody函数解析请求体
 	if err := parseJSONBody(r, &portCliConfig); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Fatalf("[UpdateCliConfig] 解析JSON请求参数错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "解析JSON请求参数错误",
+			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
 			Error:   2,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -712,9 +748,10 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 		portCliConfig.CliSN == "" ||
 		portCliConfig.CliKey == "" {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalln("[UpdateCliConfig] 请求参数为空")
 		responseError := ResponseError{
 			Status:  false,
-			Message: "请求参数为空!",
+			Message: "请求参数为空",
 			Error:   3,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -728,12 +765,13 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 	cliConfig.CreateCliConfig(global.GlobalDB)
 	// 判断是否有客户端
 	// 查看客户端在数据中是否存在
-	cliConfig.CliID = portCliConfig.CliID
+	cliConfig.CliID.String = portCliConfig.CliID
 	err := cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
+		log.Fatalf("[UpdateCliConfig] 客户端不存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "客户端不存在",
+			Message: fmt.Sprintf("客户端不存在, err:%v", err),
 			Error:   4,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -747,6 +785,7 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 	cliKeyString := fmt.Sprintf("%s%s", serNameSHA3, portCliConfig.CliSN)
 	cliKeyValue := global.GenerateMD5(cliKeyString)
 	if cliKeyValue != portCliConfig.CliKey {
+		log.Fatalln("[UpdateCliConfig] KEY值校验错误")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "KEY值校验错误",
@@ -757,56 +796,18 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 检查配置是否存在
-	ovpnClient := fmt.Sprintf("%s/client/%s.ovpn", global.GlobalJWireGuardini.OpenVpnPath, portCliConfig.CliID)
-	ccdClient := fmt.Sprintf("%s/ccd/%s", global.GlobalJWireGuardini.OpenVpnPath, portCliConfig.CliID)
-	privateClient := fmt.Sprintf("%s/server/easy-rsa/pki/private/%s.key", global.GlobalJWireGuardini.OpenVpnPath, portCliConfig.CliID)
-	reqsClient := fmt.Sprintf("%s/server/easy-rsa/pki/reqs/%s.req", global.GlobalJWireGuardini.OpenVpnPath, portCliConfig.CliID)
-	issuedClient := fmt.Sprintf("%s/server/easy-rsa/issued/private/%s.crt", global.GlobalJWireGuardini.OpenVpnPath, portCliConfig.CliID)
-	// log.Println("ovpnClient: ", ovpnClient)
-	// log.Println("ccdClient: ", ccdClient)
-	// log.Println("privateClient: ", privateClient)
-	// log.Println("reqsClient: ", reqsClient)
-	// log.Println("issuedClient: ", issuedClient)
-
-	// 更新客户端
-	clientAddSh := fmt.Sprintf("%s/server/easy-rsa/update.sh", global.GlobalJWireGuardini.OpenVpnPath)
-	// log.Println("clientAddSh: ", clientAddSh)
-	cmd := exec.Command("/bin/bash", clientAddSh, portCliConfig.CliID, cliConfig.CliAddress)
-
-	// 执行SHELL命令
-	output, err := cmd.CombinedOutput()
+	err = global.ShellUpdateClient(portCliConfig.CliID)
 	if err != nil {
-		log.Fatalf("[GetCliConfig] 无法执行 [%s %s %s] 错误: %v 执行输出: %s", clientAddSh, portCliConfig.CliID, cliConfig.CliAddress, err, output)
+		log.Fatalf("[UpdateCliConfig] 客户端更新失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "无法执行update.sh脚本!",
-			Error:   8,
+			Message: fmt.Sprintf("客户端更新失败, err:%v", err),
+			Error:   6,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
-		return
 	}
-	// log.Printf("Output:\n%s", output)
-	if (!global.CheckFileExists(privateClient)) ||
-		(!global.CheckFileExists(reqsClient)) ||
-		(!global.CheckFileExists(issuedClient)) {
-		responseError := ResponseError{
-			Status:  false,
-			Message: "客户端更新失败!",
-			Error:   9,
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responseError)
 
-		// 删除错误客户端文件
-		global.DeleteFileIfExists(ovpnClient)
-		global.DeleteFileIfExists(ccdClient)
-		global.DeleteFileIfExists(privateClient)
-		global.DeleteFileIfExists(reqsClient)
-		global.DeleteFileIfExists(issuedClient)
-		return
-	}
 	responseSuccess := ResponseSuccess{
 		Status:  true,
 		Message: "客户端更新成功!",
@@ -816,69 +817,24 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func DelCliConfig(w http.ResponseWriter, r *http.Request) {
-	// 确保请求方法是POST
-	if r.Method != http.MethodPost {
-		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
+	log.Println("[DelCliConfig] start")
+	// 解析 URL 参数
+	query := r.URL.Query()
+	cliId := query.Get("cli_id")
+
+	// 判断参数是否为空
+	if cliId == "" {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalln("[DelCliConfig] 请求参数为空")
 		responseError := ResponseError{
 			Status:  false,
-			Message: "请求类型不是Post",
+			Message: "请求参数为空",
 			Error:   1,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
 		return
 	}
-
-	// 创建一个PostCliConfig实例来存储解析后的数据
-	portDelCliConfig := PostDelCliConfig{}
-
-	// 使用封装的parseJSONBody函数解析请求体
-	if err := parseJSONBody(r, &portDelCliConfig); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		responseError := ResponseError{
-			Status:  false,
-			Message: "解析JSON请求参数错误",
-			Error:   2,
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responseError)
-		return
-	}
-
-	// 判断参数是否为空
-	if portDelCliConfig.CliID == "" ||
-		portDelCliConfig.SerID == "" {
-		// 如果参数为空，返回 JSON 错误响应
-		responseError := ResponseError{
-			Status:  false,
-			Message: "请求参数为空!",
-			Error:   3,
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responseError)
-		return
-	}
-
-	// 删除客户端
-	clientDelSh := fmt.Sprintf("%s/server/easy-rsa/del.sh", global.GlobalJWireGuardini.OpenVpnPath)
-	// log.Println("clientAddSh: ", clientAddSh)
-	cmd := exec.Command("/bin/bash", clientDelSh, portDelCliConfig.CliID)
-
-	// 执行SHELL命令
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		log.Fatalf("[GetCliConfig] 无法执行 [%s %s] 错误: %v 执行输出: %s", clientDelSh, portDelCliConfig.CliID, err, output)
-		responseError := ResponseError{
-			Status:  false,
-			Message: "无法执行del.sh脚本!",
-			Error:   8,
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responseError)
-		return
-	}
-	// log.Printf("Output:\n%s", output)
 
 	// 创建数据库对象
 	subnet := database.Subnet{}
@@ -888,14 +844,30 @@ func DelCliConfig(w http.ResponseWriter, r *http.Request) {
 	subnet.CreateSubnet(global.GlobalDB)
 	cliConfig.CreateCliConfig(global.GlobalDB)
 
-	// 删除客户端
-	cliConfig.CliID = portDelCliConfig.CliID
-	err = cliConfig.DeleteCliConfig(global.GlobalDB)
+	// 查询客户端
+	cliConfig.CliID.String = cliId
+	err := cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
+		log.Fatalf("[DelCliConfig] 客户端不存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "删除客户端失败",
-			Error:   9,
+			Message: fmt.Sprintf("客户端不存在, err:%v", err),
+			Error:   2,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(responseError)
+		return
+	}
+
+	// 删除客户端
+
+	err = cliConfig.DeleteCliConfig(global.GlobalDB)
+	if err != nil {
+		log.Fatalf("[DelCliConfig] 删除客户端失败, err:%v", err)
+		responseError := ResponseError{
+			Status:  false,
+			Message: fmt.Sprintf("删除客户端失败, err:%v", err),
+			Error:   3,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -905,10 +877,25 @@ func DelCliConfig(w http.ResponseWriter, r *http.Request) {
 	// 查询客户端
 	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err == nil {
+		log.Fatalf("[DelCliConfig] 客户端删除失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "删除客户端失败",
-			Error:   10,
+			Message: fmt.Sprintf("客户端删除失败, err:%v", err),
+			Error:   4,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(responseError)
+		return
+	}
+
+	// 执行SHELL命令
+	err = global.ShellDelClient(cliId)
+	if err != nil {
+		log.Fatalf("[DelCliConfig] 无法删除客户端, err:%v", err)
+		responseError := ResponseError{
+			Status:  false,
+			Message: fmt.Sprintf("无法删除客户端, err:%v", err),
+			Error:   5,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -925,10 +912,12 @@ func DelCliConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
+	log.Println("[UpdateCliInfo] start")
 	// 确保请求方法是POST
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalln("[UpdateCliInfo] 请求类型不是Post")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
@@ -938,18 +927,15 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(responseError)
 		return
 	}
-
-	// 创建数据对象
-	postClientInfo := database.CliConfig{}
-	// 初始化数据库
-	postClientInfo.CreateCliConfig(global.GlobalDB)
-
+	//
+	postClientInfoRecv := database.ExportedCliConfig{}
 	// 使用封装的parseJSONBody函数解析请求体
-	if err := parseJSONBody(r, &postClientInfo); err != nil {
+	if err := parseJSONBody(r, &postClientInfoRecv); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Fatalf("[UpdateCliInfo] 解析JSON请求参数错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "解析JSON请求参数错误",
+			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
 			Error:   2,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -957,11 +943,17 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if postClientInfo.CliID == "" {
+	// 创建数据对象
+	postClientInfo := postClientInfoRecv.ConvertToCliConfig()
+	// 初始化数据库.
+	postClientInfo.CreateCliConfig(global.GlobalDB)
+
+	if postClientInfo.CliID.String == "" {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalln("[UpdateCliInfo] 请求参数为空")
 		responseError := ResponseError{
 			Status:  false,
-			Message: "请求参数为空!",
+			Message: "请求参数为空",
 			Error:   3,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -970,14 +962,15 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 备份数据
-	postClientInfoBak := postClientInfo
+	postClientInfoBak := postClientInfoRecv.ConvertToCliConfig()
 	// 查看客户端是否存在
 	err := postClientInfoBak.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[UpdateCliInfo] 客户端不存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "客户端不存在!",
+			Message: fmt.Sprintf("客户端不存在, err:%v", err),
 			Error:   4,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -989,9 +982,10 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 	err = postClientInfo.UpdateCliConfig(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[UpdateCliInfo] 修改客户端信息失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "修改客户端信息失败!",
+			Message: fmt.Sprintf("修改客户端信息失败, err:%v", err),
 			Error:   5,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -1000,15 +994,22 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 如果有IP地址更改则修改IP地址
-	if postClientInfo.CliAddress != "" {
-		changClientFile := fmt.Sprintf("%s/ccd/%s", global.GlobalJWireGuardini.OpenVpnPath, postClientInfo.CliID)
-		changClientAddr := fmt.Sprintf("ifconfig-push %s 255.255.0.0", postClientInfo.CliAddress)
-		err := global.WriteToFile(changClientFile, changClientAddr)
+	if postClientInfo.CliAddress.String != "" {
+		changClientFile := fmt.Sprintf("%s/%s",
+			global.GlobalOpenVPNPath.CcdPath,
+			postClientInfo.CliID.String)
+
+		changClientAddr := fmt.Sprintf("ifconfig-push %s %s",
+			postClientInfo.CliAddress.String,
+			global.GlobalJWireGuardini.SubnetMask)
+
+		err = global.WriteToFile(changClientFile, changClientAddr)
 		if err != nil {
 			// 如果参数为空，返回 JSON 错误响应
+			log.Fatalf("[UpdateCliInfo] 修改客户端IP地址失败, err:%v", err)
 			responseError := ResponseError{
 				Status:  false,
-				Message: "修改客户端IP地址失败!",
+				Message: fmt.Sprintf("修改客户端IP地址失败, err:%v", err),
 				Error:   6,
 			}
 			w.Header().Set("Content-Type", "application/json")
@@ -1028,10 +1029,12 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
+	log.Println("[UpdateCliAddr] start")
 	// 确保请求方法是POST
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalln("[UpdateCliAddr] 请求类型不是Post")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
@@ -1049,9 +1052,10 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 	// 使用封装的parseJSONBody函数解析请求体
 	if err := parseJSONBody(r, &postClientAddress); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Fatalf("[UpdateCliAddr] 解析JSON请求参数错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "解析JSON请求参数错误",
+			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
 			Error:   2,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -1061,9 +1065,10 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 
 	if postClientAddress.CliID == "" || postClientAddress.Address == "" {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalln("[UpdateCliAddr] 请求参数为空")
 		responseError := ResponseError{
 			Status:  false,
-			Message: "请求参数为空!",
+			Message: "请求参数为空",
 			Error:   3,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -1072,13 +1077,14 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 查看客户端是否存在
-	clientConfig.CliID = postClientAddress.CliID
+	clientConfig.CliID.String = postClientAddress.CliID
 	err := clientConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[UpdateCliAddr] 客户端不存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "客户端不存在!",
+			Message: fmt.Sprintf("客户端不存在, err:%v", err),
 			Error:   4,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -1087,14 +1093,15 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 更新客户端IP地址
-	clientConfig.CliAddress = postClientAddress.Address
+	clientConfig.CliAddress.String = postClientAddress.Address
 	// 更新数据
 	err = clientConfig.UpdateCliConfig(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[UpdateCliAddr] 在数据库中修改客户端IP地址失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "在数据库中修改客户端IP地址失败!",
+			Message: fmt.Sprintf("在数据库中修改客户端IP地址失败, err:%v", err),
 			Error:   5,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -1102,14 +1109,22 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	changClientFile := fmt.Sprintf("%s/ccd/%s", global.GlobalJWireGuardini.OpenVpnPath, postClientAddress.CliID)
-	changClientAddr := fmt.Sprintf("ifconfig-push %s 255.255.0.0", postClientAddress.Address)
+	changClientFile := fmt.Sprintf("%s/%s",
+		global.GlobalOpenVPNPath.CcdPath,
+		postClientAddress.CliID)
+	// changClientAddr := fmt.Sprintf("ifconfig-push %s 255.255.0.0", postClientAddress.Address)
+
+	changClientAddr := fmt.Sprintf("ifconfig-push %s %s",
+		postClientAddress.Address,
+		global.GlobalJWireGuardini.SubnetMask)
+
 	err = global.WriteToFile(changClientFile, changClientAddr)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[UpdateCliAddr] 在文件中修改客户端IP地址失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "在文件中修改客户端IP地址失败!",
+			Message: fmt.Sprintf("在文件中修改客户端IP地址失败, err:%v", err),
 			Error:   6,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -1127,11 +1142,12 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 }
 
 func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
-
+	log.Println("[UpdataSubnetCliAddr] start")
 	// 确保请求方法是POST
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalln("[UpdataSubnetCliAddr] 请求类型不是Post")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
@@ -1148,9 +1164,10 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 	// 使用封装的parseJSONBody函数解析请求体
 	if err := parseJSONBody(r, &portUpdateClientAddress); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Fatalf("[UpdataSubnetCliAddr] 解析JSON请求参数错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "解析JSON请求参数错误",
+			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
 			Error:   2,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -1160,9 +1177,10 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 
 	if portUpdateClientAddress.CliID == "" || portUpdateClientAddress.SerID == "" {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalln("[UpdataSubnetCliAddr] 请求参数为空")
 		responseError := ResponseError{
 			Status:  false,
-			Message: "请求参数为空!",
+			Message: "请求参数为空",
 			Error:   3,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -1178,13 +1196,14 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 	cliConfig.CreateCliConfig(global.GlobalDB)
 
 	// 获取子网网段
-	subnet.SerID = portUpdateClientAddress.SerID
+	subnet.SerID.String = portUpdateClientAddress.SerID
 	err := subnet.GetSubnetBySerId(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[UpdataSubnetCliAddr] 子网不存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "子网不存在!",
+			Message: fmt.Sprintf("子网不存在, err:%v", err),
 			Error:   4,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -1193,13 +1212,14 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 查看客户端是否存在
-	cliConfig.CliID = portUpdateClientAddress.CliID
+	cliConfig.CliID.String = portUpdateClientAddress.CliID
 	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[UpdataSubnetCliAddr] 客户端不存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "客户端不存在!",
+			Message: fmt.Sprintf("客户端不存在, err:%v", err),
 			Error:   6,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -1208,13 +1228,18 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 获取客户端可用的IP地址
-	ipPrefix := fmt.Sprintf("%s.%d", global.GlobalJWireGuardini.IPPrefix, subnet.SerNum)
-	ccdPath := fmt.Sprintf("%s/ccd", global.GlobalJWireGuardini.OpenVpnPath)
+	ipPrefix := fmt.Sprintf("%s.%d",
+		global.GlobalJWireGuardini.IPPrefix,
+		subnet.SerNum.Int32)
+
+	ccdPath := fmt.Sprintf("%s/ccd",
+		global.GlobalJWireGuardini.OpenVpnPath)
 	cliAddress, err := FindUnusedIP(ccdPath, ipPrefix)
 	if err != nil {
+		log.Fatalf("[UpdataSubnetCliAddr] 无法获取到当前可用的客户端IP, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "无法获取到当前可用的客户端IP",
+			Message: fmt.Sprintf("无法获取到当前可用的客户端IP, err:%v", err),
 			Error:   7,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -1223,13 +1248,14 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 更新数据
-	cliConfig.CliAddress = cliAddress
+	cliConfig.CliAddress.String = cliAddress
 	err = cliConfig.UpdateCliConfig(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[UpdataSubnetCliAddr] 在数据库中修改客户端IP地址失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "在数据库中修改客户端IP地址失败!",
+			Message: fmt.Sprintf("在数据库中修改客户端IP地址失败, err:%v", err),
 			Error:   5,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -1237,14 +1263,22 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	changClientFile := fmt.Sprintf("%s/ccd/%s", global.GlobalJWireGuardini.OpenVpnPath, portUpdateClientAddress.CliID)
-	changClientAddr := fmt.Sprintf("ifconfig-push %s 255.255.0.0", cliAddress)
+	changClientFile := fmt.Sprintf("%s/%s",
+		global.GlobalOpenVPNPath.CcdPath,
+		portUpdateClientAddress.CliID)
+	// changClientAddr := fmt.Sprintf("ifconfig-push %s 255.255.0.0", cliAddress)
+
+	changClientAddr := fmt.Sprintf("ifconfig-push %s %s",
+		cliAddress,
+		global.GlobalJWireGuardini.SubnetMask)
+
 	err = global.WriteToFile(changClientFile, changClientAddr)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[UpdataSubnetCliAddr] 在文件中修改客户端IP地址失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "在文件中修改客户端IP地址失败!",
+			Message: fmt.Sprintf("在文件中修改客户端IP地址失败, err:%v", err),
 			Error:   6,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -1255,7 +1289,7 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 	// 返回结果
 	responseSuccess := ResponseSuccess{
 		Status:  true,
-		Message: "更新客户端IP成功!",
+		Message: "更新客户端子网成功!",
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(responseSuccess)

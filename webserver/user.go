@@ -8,7 +8,6 @@ import (
 	"jwireguard/global"
 	"log"
 	"net/http"
-	"os/exec"
 )
 
 // 定义一个结构体，用于存储用户登录信息
@@ -34,10 +33,12 @@ func registerUserRoutes() {
 
 // 用户登录验证
 func CheckUsersLogin(w http.ResponseWriter, r *http.Request) {
+	log.Println("[CheckUsersLogin] start")
 	// 确保请求方法是POST
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalln("[CheckUsersLogin] 请求类型不是Post")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
@@ -54,9 +55,10 @@ func CheckUsersLogin(w http.ResponseWriter, r *http.Request) {
 	// 使用封装的parseJSONBody函数解析请求体
 	if err := parseJSONBody(r, &portCheckUserLogin); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Fatalf("[CheckUsersLogin] 解析JSON请求参数错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "解析JSON请求参数错误",
+			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
 			Error:   2,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -67,9 +69,10 @@ func CheckUsersLogin(w http.ResponseWriter, r *http.Request) {
 	if portCheckUserLogin.UserName == "" ||
 		portCheckUserLogin.UserPasswd == "" {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalln("[CheckUsersLogin] 请求参数为空")
 		responseError := ResponseError{
 			Status:  false,
-			Message: "请求参数为空!",
+			Message: "请求参数为空",
 			Error:   3,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -85,9 +88,10 @@ func CheckUsersLogin(w http.ResponseWriter, r *http.Request) {
 	encryptedPasswd, err := global.Encrypt(portCheckUserLogin.UserPasswd, global.GlobalEncryptKey)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[CheckUsersLogin] 密码错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "密码错误!",
+			Message: fmt.Sprintf("密码错误, err:%v", err),
 			Error:   4,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -96,15 +100,16 @@ func CheckUsersLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 账号认证
-	dbuser.UserName = portCheckUserLogin.UserName
-	dbuser.UserPasswd = encryptedPasswd
+	dbuser.UserName.String = portCheckUserLogin.UserName
+	dbuser.UserPasswd.String = encryptedPasswd
 
 	loginStatus, err := dbuser.CheckLogin(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[CheckUsersLogin] 密码错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "密码错误!",
+			Message: fmt.Sprintf("密码错误, err:%v", err),
 			Error:   5,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -114,9 +119,10 @@ func CheckUsersLogin(w http.ResponseWriter, r *http.Request) {
 
 	if !loginStatus {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[CheckUsersLogin] 密码错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "密码错误!",
+			Message: fmt.Sprintf("密码错误, err:%v", err),
 			Error:   6,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -128,7 +134,7 @@ func CheckUsersLogin(w http.ResponseWriter, r *http.Request) {
 	responseCheckLogin := ResponseCheckLogin{
 		Status:  true,
 		Message: "登录成功!",
-		UserID:  dbuser.UserID,
+		UserID:  dbuser.UserID.String,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -137,10 +143,12 @@ func CheckUsersLogin(w http.ResponseWriter, r *http.Request) {
 
 // 添加用户
 func AddUser(w http.ResponseWriter, r *http.Request) {
+	log.Println("[AddUser] start")
 	// 确保请求方法是POST
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[AddUser] 请求类型不是Post")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
@@ -151,15 +159,15 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 创建一个PostCliConfig实例来存储解析后的数据
-	portUser := database.User{}
+	exporteUser := database.ExportedUser{}
 
 	// 使用封装的parseJSONBody函数解析请求体
-	if err := parseJSONBody(r, &portUser); err != nil {
+	if err := parseJSONBody(r, &exporteUser); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Fatalf("[AddUser] 解析JSON请求参数错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "解析JSON请求参数错误",
+			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
 			Error:   2,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -167,13 +175,17 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if portUser.UserName == "" ||
-		portUser.SerID == "" ||
-		portUser.UserPasswd == "" {
+	// 创建一个PostCliConfig实例来存储解析后的数据
+	portUser := exporteUser.ConvertToUser()
+
+	if portUser.UserName.String == "" ||
+		portUser.SerID.String == "" ||
+		portUser.UserPasswd.String == "" {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalln("[AddUser] 请求参数为空")
 		responseError := ResponseError{
 			Status:  false,
-			Message: "请求参数为空!",
+			Message: "请求参数为空",
 			Error:   3,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -182,9 +194,10 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 生成用户ID
-	if portUser.UserID == "" {
-		portUser.UserID = global.GenerateMD5(portUser.UserName)
+	if portUser.UserID.String == "" {
+		portUser.UserID.String = global.GenerateMD5(portUser.UserName.String)
 	}
+
 	// 初始化数据库
 	portUser.CreateUser(global.GlobalDB)
 
@@ -192,9 +205,10 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 	err := portUser.GetUserByID(global.GlobalDB)
 	if err == nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[AddUser] 用户已存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "用户已存在!",
+			Message: fmt.Sprintf("用户已存在, err:%v", err),
 			Error:   4,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -203,12 +217,13 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 对密码进行加密
-	encryptedPasswd, err := global.Encrypt(portUser.UserPasswd, global.GlobalEncryptKey)
+	encryptedPasswd, err := global.Encrypt(portUser.UserPasswd.String, global.GlobalEncryptKey)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[AddUser] 密码错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "密码错误!",
+			Message: fmt.Sprintf("密码错误, err:%v", err),
 			Error:   5,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -217,19 +232,19 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 添加用户
-	portUser.UserPasswd = encryptedPasswd
+	portUser.UserPasswd.String = encryptedPasswd
 	err = portUser.InsertUser(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[AddUser] 添加用户失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "添加用户失败!",
+			Message: fmt.Sprintf("添加用户失败, err:%v", err),
 			Error:   6,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
 		return
-
 	}
 
 	// 创建数据库对象
@@ -237,75 +252,40 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 	// 初始化数据库
 	cliConfig.CreateCliConfig(global.GlobalDB)
 
-	// 添加客户端
-	cliConfig.CliID = portUser.UserID
-	cliConfig.CliAddress = fmt.Sprintf("%s.0.1", global.GlobalJWireGuardini.IPPrefix)
-	ovpnClient := fmt.Sprintf("%s/client/%s.ovpn", global.GlobalJWireGuardini.OpenVpnPath, cliConfig.CliID)
-	ccdClient := fmt.Sprintf("%s/ccd/%s", global.GlobalJWireGuardini.OpenVpnPath, cliConfig.CliID)
-	privateClient := fmt.Sprintf("%s/server/easy-rsa/pki/private/%s.key", global.GlobalJWireGuardini.OpenVpnPath, cliConfig.CliID)
-	reqsClient := fmt.Sprintf("%s/server/easy-rsa/pki/reqs/%s.req", global.GlobalJWireGuardini.OpenVpnPath, cliConfig.CliID)
-	issuedClient := fmt.Sprintf("%s/server/easy-rsa/issued/private/%s.crt", global.GlobalJWireGuardini.OpenVpnPath, cliConfig.CliID)
-	// log.Println("ovpnClient: ", ovpnClient)
-	// log.Println("ccdClient: ", ccdClient)
-	// log.Println("privateClient: ", privateClient)
-	// log.Println("reqsClient: ", reqsClient)
-	// log.Println("issuedClient: ", issuedClient)
+	userAddr := fmt.Sprintf("%s.0.1", global.GlobalJWireGuardini.IPPrefix)
 
 	// 添加客户端
-	clientAddSh := fmt.Sprintf("%s/server/easy-rsa/add.sh", global.GlobalJWireGuardini.OpenVpnPath)
-	// log.Println("clientAddSh: ", clientAddSh)
-	cmd := exec.Command("/bin/bash", clientAddSh, cliConfig.CliID, cliConfig.CliAddress)
-
-	// 执行SHELL命令
-	output, err := cmd.CombinedOutput()
+	err = global.ShellAddClient(portUser.UserID.String, userAddr)
 	if err != nil {
-		log.Fatalf("[GetCliConfig] 无法执行 [%s %s %s] 错误: %v 执行输出: %s", clientAddSh, cliConfig.CliID, cliConfig.CliAddress, err, output)
+		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[AddUser] 添加用户配置失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "无法执行add.sh脚本!",
-			Error:   9,
+			Message: fmt.Sprintf("添加用户配置失败, err:%v", err),
+			Error:   7,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
-		return
-	}
-	// log.Printf("Output:\n%s", output)
-	if (!global.CheckFileExists(privateClient)) ||
-		(!global.CheckFileExists(reqsClient)) ||
-		(!global.CheckFileExists(issuedClient)) {
-		responseError := ResponseError{
-			Status:  false,
-			Message: "文件中创建客户端失败!",
-			Error:   10,
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responseError)
-
-		// 删除错误客户端文件
-		global.DeleteFileIfExists(ovpnClient)
-		global.DeleteFileIfExists(ccdClient)
-		global.DeleteFileIfExists(privateClient)
-		global.DeleteFileIfExists(reqsClient)
-		global.DeleteFileIfExists(issuedClient)
-
 		return
 	}
 
 	cliConfig.CliName = portUser.UserName
-	cliConfig.CliMapping = ""
-	cliConfig.CliStatus = "false"
-	cliConfig.EditStatus = "false"
-	cliConfig.CliSN = ""
-	cliConfig.SerID = ""
-	cliConfig.SerName = ""
-	cliConfig.Timestamp = 0
+	cliConfig.CliMapping.String = ""
+	cliConfig.CliStatus.String = "false"
+	cliConfig.EditStatus.String = "false"
+	cliConfig.CliSN.String = ""
+	cliConfig.SerID.String = ""
+	cliConfig.SerName.String = ""
+	cliConfig.Timestamp.Int64 = 0
+	cliConfig.OnlineStatus.String = "true"
 
 	err = cliConfig.InsertCliConfig(global.GlobalDB)
 	if err != nil {
+		log.Fatalf("[AddUser] 数据库创建客户端失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "数据库创建客户端失败!",
-			Error:   10,
+			Message: fmt.Sprintf("数据库创建客户端失败, err:%v", err),
+			Error:   8,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -323,10 +303,12 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 
 // 编辑用户
 func EditUser(w http.ResponseWriter, r *http.Request) {
+	log.Println("[EditUser] start")
 	// 确保请求方法是POST
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalln("[EditUser] 请求类型不是Post")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
@@ -338,14 +320,16 @@ func EditUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 创建一个PostCliConfig实例来存储解析后的数据
-	portUser := database.User{}
+
+	exporteUser := database.ExportedUser{}
 
 	// 使用封装的parseJSONBody函数解析请求体
-	if err := parseJSONBody(r, &portUser); err != nil {
+	if err := parseJSONBody(r, &exporteUser); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Fatalf("[EditUser] 解析JSON请求参数错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "解析JSON请求参数错误",
+			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
 			Error:   2,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -353,13 +337,14 @@ func EditUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if portUser.UserID == "" ||
-		portUser.UserName == "" ||
-		portUser.UserPasswd == "" {
+	portUser := exporteUser.ConvertToUser()
+
+	if portUser.UserID.String == "" {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalln("[EditUser] 请求参数为空")
 		responseError := ResponseError{
 			Status:  false,
-			Message: "请求参数为空!",
+			Message: "请求参数为空",
 			Error:   3,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -370,13 +355,16 @@ func EditUser(w http.ResponseWriter, r *http.Request) {
 	// 初始化数据库
 	portUser.CreateUser(global.GlobalDB)
 
+	portUserbak := portUser
+
 	// 判断用户是否存在
-	err := portUser.GetUserByID(global.GlobalDB)
+	err := portUserbak.GetUserByID(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[EditUser] 用户不存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "用户不存在!",
+			Message: fmt.Sprintf("用户不存在, err:%v", err),
 			Error:   4,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -384,34 +372,37 @@ func EditUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 对密码进行加密
-	encryptedPasswd, err := global.Encrypt(portUser.UserPasswd, global.GlobalEncryptKey)
-	if err != nil {
-		// 如果参数为空，返回 JSON 错误响应
-		responseError := ResponseError{
-			Status:  false,
-			Message: "密码错误!",
-			Error:   5,
+	if portUser.UserPasswd.String != "" {
+		// 对密码进行加密
+		encryptedPasswd, err := global.Encrypt(portUser.UserPasswd.String, global.GlobalEncryptKey)
+		if err != nil {
+			// 如果参数为空，返回 JSON 错误响应
+			log.Fatalf("[EditUser] 密码错误, err:%v", err)
+			responseError := ResponseError{
+				Status:  false,
+				Message: fmt.Sprintf("密码错误, err:%v", err),
+				Error:   5,
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(responseError)
+			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responseError)
-		return
+		portUser.UserPasswd.String = encryptedPasswd
 	}
 
-	// 添加用户
-	portUser.UserPasswd = encryptedPasswd
+	// 更新用户
 	err = portUser.UpdateUsers(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[EditUser] 用户修改失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "用户修改失败!",
+			Message: fmt.Sprintf("用户修改失败, err:%v", err),
 			Error:   6,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
 		return
-
 	}
 
 	// 返回 JSON 响应
@@ -425,6 +416,7 @@ func EditUser(w http.ResponseWriter, r *http.Request) {
 
 // 删除用户
 func DelUser(w http.ResponseWriter, r *http.Request) {
+	log.Println("[DelUser] start")
 	// 解析 URL 参数
 	query := r.URL.Query()
 	userID := query.Get("user_id")
@@ -432,9 +424,10 @@ func DelUser(w http.ResponseWriter, r *http.Request) {
 	// 判断参数是否为空
 	if userID == "" {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalln("[DelUser] 参数为空")
 		responseError := ResponseError{
 			Status:  false,
-			Message: "参数为空!",
+			Message: "参数为空",
 			Error:   1,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -449,14 +442,15 @@ func DelUser(w http.ResponseWriter, r *http.Request) {
 	user.CreateUser(global.GlobalDB)
 
 	// 查看子网是否存在
-	user.UserID = userID
+	user.UserID.String = userID
 
 	err := user.GetUserByID(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[DelUser] 用户不存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "用户不存在!",
+			Message: fmt.Sprintf("用户不存在, err:%v", err),
 			Error:   2,
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -468,10 +462,25 @@ func DelUser(w http.ResponseWriter, r *http.Request) {
 	err = user.DeleteUsers(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
+		log.Fatalf("[DelUser] 用户删除失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: "用户删除失败!",
+			Message: fmt.Sprintf("用户删除失败, err:%v", err),
 			Error:   3,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(responseError)
+		return
+	}
+
+	// 执行SHELL命令
+	err = global.ShellDelClient(userID)
+	if err != nil {
+		log.Fatalf("[DelUser] 无法删除客户端, err:%v", err)
+		responseError := ResponseError{
+			Status:  false,
+			Message: fmt.Sprintf("无法删除客户端, err:%v", err),
+			Error:   5,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)

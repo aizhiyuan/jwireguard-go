@@ -9,10 +9,17 @@ import (
 )
 
 type Subnet struct {
+	SerID   sql.NullString `json:"ser_id"`
+	SerName sql.NullString `json:"ser_name"`
+	SerNum  sql.NullInt32  `json:"ser_num"`
+	CliNum  sql.NullInt32  `json:"cli_num"`
+}
+
+type ExportedSubnet struct {
 	SerID   string `json:"ser_id"`
 	SerName string `json:"ser_name"`
-	SerNum  int    `json:"ser_num"`
-	CliNum  int    `json:"cli_num"`
+	SerNum  int32  `json:"ser_num"`
+	CliNum  int32  `json:"cli_num"`
 }
 
 // ----------------------------------------------------------------------------------------------------------
@@ -22,18 +29,38 @@ func (s *Subnet) CreateSubnet(db *sql.DB) {
 	if !s.TableExists(db) {
 		createTableSQL := `CREATE TABLE IF NOT EXISTS subnet (
             "ser_id" TEXT NOT NULL PRIMARY KEY,
-            "ser_name" TEXT NOT NULL,
-			"ser_num" INTEGER NOT NULL,
-			"cli_num" INTEGER NOT NULL
+            "ser_name" TEXT,
+			"ser_num" INTEGER,
+			"cli_num" INTEGER
         );`
 		_, err := db.Exec(createTableSQL)
 		if err != nil {
 			log.Fatalln("[CreateSubnet] Error creating table:", err)
 			return
 		}
-		log.Println("[CreateSubnet] Table 'subnet' created successfully!")
+		// log.Println("[CreateSubnet] Table 'subnet' created successfully!")
 	} else {
-		log.Println("[CreateSubnet] Table 'subnet' already exists.")
+		// log.Println("[CreateSubnet] Table 'subnet' already exists.")
+	}
+}
+
+// ToExported 负责将 CliConfig 转换为 ExportedCliConfig
+func (s *Subnet) ToExported() ExportedSubnet {
+	return ExportedSubnet{
+		SerID:   nullStringToString(s.SerID),
+		SerName: nullStringToString(s.SerName),
+		SerNum:  nullInt32ToInt32(s.SerNum),
+		CliNum:  nullInt32ToInt32(s.CliNum),
+	}
+}
+
+// 将 ExportedCliConfig 转换为 CliConfig
+func (exported *ExportedSubnet) ConvertToSubnet() Subnet {
+	return Subnet{
+		SerID:   sql.NullString{String: exported.SerID, Valid: exported.SerID != ""},
+		SerName: sql.NullString{String: exported.SerName, Valid: exported.SerName != ""},
+		SerNum:  sql.NullInt32{Int32: exported.SerNum, Valid: exported.SerNum != -1},
+		CliNum:  sql.NullInt32{Int32: exported.CliNum, Valid: exported.CliNum != -1},
 	}
 }
 
@@ -47,7 +74,7 @@ func (s *Subnet) InsertSubnet(db *sql.DB) error {
 	}
 	defer stmt.Close()
 
-	_, err = stmt.Exec(s.SerID, s.SerName, s.SerNum, s.CliNum)
+	_, err = stmt.Exec(s.SerID.String, s.SerName.String, s.SerNum.Int32, s.CliNum.Int32)
 	if err != nil {
 		return err
 	}
@@ -60,12 +87,12 @@ func (s *Subnet) InsertSubnet(db *sql.DB) error {
 // ----------------------------------------------------------------------------------------------------------
 func (s *Subnet) GetSubnetBySerId(db *sql.DB) error {
 	query := "SELECT ser_id, ser_name, ser_num, cli_num FROM subnet WHERE ser_id = ?"
-	row := db.QueryRow(query, s.SerID)
+	row := db.QueryRow(query, s.SerID.String)
 
 	err := row.Scan(&s.SerID, &s.SerName, &s.SerNum, &s.CliNum)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return fmt.Errorf("Subnet with SerID %s not found", s.SerID)
+			return fmt.Errorf("Subnet with SerID %s not found", s.SerID.String)
 		}
 		return err
 	}
@@ -145,7 +172,7 @@ func (s *Subnet) GetAllSubnet(db *sql.DB) ([]Subnet, error) {
 // 更新子网中的部分数据
 // ----------------------------------------------------------------------------------------------------------
 func (s *Subnet) UpdateSubnet(db *sql.DB) error {
-	if s.SerID == "" {
+	if s.SerID.String == "" {
 		return errors.New("ser_id cannot be empty")
 	}
 
@@ -154,17 +181,17 @@ func (s *Subnet) UpdateSubnet(db *sql.DB) error {
 	args := []interface{}{}
 
 	// 动态添加不为空的字段
-	if s.SerName != "" {
+	if s.SerName.String != "" {
 		setClauses = append(setClauses, "ser_name = ?")
-		args = append(args, s.SerName)
+		args = append(args, s.SerName.String)
 	}
-	if s.SerNum != -1 {
+	if s.SerNum.Int32 != 0 {
 		setClauses = append(setClauses, "ser_num = ?")
-		args = append(args, s.SerNum)
+		args = append(args, s.SerNum.Int32)
 	}
-	if s.CliNum != -1 {
+	if s.CliNum.Int32 != 0 {
 		setClauses = append(setClauses, "cli_num = ?")
-		args = append(args, s.CliNum)
+		args = append(args, s.CliNum.Int32)
 	}
 
 	// 如果没有任何字段需要更新
@@ -174,7 +201,7 @@ func (s *Subnet) UpdateSubnet(db *sql.DB) error {
 
 	// 构建最终的 SQL 语句
 	query := fmt.Sprintf("UPDATE subnet SET %s WHERE ser_id = ?", strings.Join(setClauses, ", "))
-	args = append(args, s.SerID)
+	args = append(args, s.SerID.String)
 
 	// 准备并执行 SQL 语句
 	stmt, err := db.Prepare(query)
@@ -201,7 +228,7 @@ func (s *Subnet) DeleteSubnet(db *sql.DB) error {
 	}
 	defer stmt.Close()
 
-	_, err = stmt.Exec(s.SerID)
+	_, err = stmt.Exec(s.SerID.String)
 	if err != nil {
 		return err
 	}
@@ -222,7 +249,7 @@ func (s *Subnet) TableExists(db *sql.DB) bool {
 // ----------------------------------------------------------------------------------------------------------
 // 获取新的子网网段（SerNum），返回数据库中不存在的 SerNum 值
 // ----------------------------------------------------------------------------------------------------------
-func (s *Subnet) GetNewSubnetNumber(db *sql.DB) (int, error) {
+func (s *Subnet) GetNewSubnetNumber(db *sql.DB) (int32, error) {
 	// 查询现有的 SerNum 值
 	query := "SELECT ser_num FROM subnet"
 	rows, err := db.Query(query)
@@ -232,9 +259,9 @@ func (s *Subnet) GetNewSubnetNumber(db *sql.DB) (int, error) {
 	defer rows.Close()
 
 	// 使用 map 存储已存在的 SerNum
-	existingSerNums := make(map[int]bool)
+	existingSerNums := make(map[int32]bool)
 	for rows.Next() {
-		var serNum int
+		var serNum int32
 		if err := rows.Scan(&serNum); err != nil {
 			return -1, err
 		}
@@ -242,7 +269,7 @@ func (s *Subnet) GetNewSubnetNumber(db *sql.DB) (int, error) {
 	}
 
 	// 检查 0 ~ 254 的 SerNum 值，返回第一个不存在的值
-	for i := 0; i <= 254; i++ {
+	for i := int32(0); i <= 254; i++ {
 		if _, exists := existingSerNums[i]; !exists {
 			return i, nil
 		}

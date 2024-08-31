@@ -2,6 +2,8 @@
 package global
 
 import (
+	"bufio"
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/md5"
@@ -15,8 +17,11 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
+	"os/exec"
+	"strings"
 	"time"
 
 	"gopkg.in/ini.v1"
@@ -27,6 +32,24 @@ type JWireGuardIni struct {
 	IPPrefix    string // IP前缀
 	DefaultUser string // 默认用户
 	OpenVpnPath string // OpenVpn 路径
+	OpenSslFile string // OpenSSL 程序路径
+	SubnetMask  string //子网掩码
+	NetworkMask string //网络子网掩码
+	ServerPort  uint16 //服务器端口
+	UDPPort     uint16 //UDP服务器端口
+}
+
+type OpenVPNPath struct {
+	CcdPath     string
+	BinPath     string
+	ConfigPath  string
+	ServerPath  string
+	EasyRsaPath string
+	EasyRsaFile string
+	PkiPath     string
+	IssuedPath  string
+	PrivatePath string
+	ReqsPath    string
 }
 
 // ----------------------------------------------------------------------------------------------------------
@@ -36,6 +59,8 @@ var GlobalDB *sql.DB // This is a global variable
 var GlobalDefaultUserMd5 string
 var GlobalJWireGuardini *JWireGuardIni
 var GlobalEncryptKey string
+
+var GlobalOpenVPNPath OpenVPNPath
 
 // 定义多个时间服务器
 var timeServers = []string{
@@ -150,12 +175,16 @@ func LoadOrCreateJWireGuardIni(filePath string) (*JWireGuardIni, error) {
 		cfg.Section("GENERAL SETTING").Key("IP_PREFIX").SetValue("10.100")
 		cfg.Section("GENERAL SETTING").Key("DEFAULT_USER").SetValue("admin")
 		cfg.Section("GENERAL SETTING").Key("OPENVPN_PATH").SetValue("/etc/openvpn")
+		cfg.Section("GENERAL SETTING").Key("OPENSSL_FILE").SetValue("/usr/bin/openssl")
+		cfg.Section("GENERAL SETTING").Key("SUBNET_MAKE").SetValue("255.255.0.0")
+		cfg.Section("GENERAL SETTING").Key("NETWORK_MASK").SetValue("255.255.255.0")
+		cfg.Section("GENERAL SETTING").Key("SERVER_PORT").SetValue("1092")
+		cfg.Section("GENERAL SETTING").Key("UDP_PORT").SetValue("1092")
 
 		// 保存到文件
 		if err = cfg.SaveTo(filePath); err != nil {
 			return nil, fmt.Errorf("failed to create new ini file: %v", err)
 		}
-		log.Println("INI file created with default values")
 	} else {
 		// 文件存在，读取配置
 		cfg, err = ini.Load(filePath)
@@ -169,6 +198,11 @@ func LoadOrCreateJWireGuardIni(filePath string) (*JWireGuardIni, error) {
 		IPPrefix:    cfg.Section("GENERAL SETTING").Key("IP_PREFIX").String(),
 		DefaultUser: cfg.Section("GENERAL SETTING").Key("DEFAULT_USER").String(),
 		OpenVpnPath: cfg.Section("GENERAL SETTING").Key("OPENVPN_PATH").String(),
+		OpenSslFile: cfg.Section("GENERAL SETTING").Key("OPENSSL_FILE").String(),
+		SubnetMask:  cfg.Section("GENERAL SETTING").Key("SUBNET_MAKE").String(),
+		NetworkMask: cfg.Section("GENERAL SETTING").Key("NETWORK_MASK").String(),
+		ServerPort:  uint16(cfg.Section("GENERAL SETTING").Key("SERVER_PORT").MustUint(1092)),
+		UDPPort:     uint16(cfg.Section("GENERAL SETTING").Key("UDP_PORT").MustUint(1092)),
 	}
 
 	return jwg, nil
@@ -236,7 +270,42 @@ func Decrypt(cipherText string, key string) (string, error) {
 	return string(ciphertextBytes), nil
 }
 
-// 从指定 URL 获取时间
+// ----------------------------------------------------------------------------------------------------------
+// ConvertToNetworkAddress IP地址和子网掩码生成网络地址
+// ----------------------------------------------------------------------------------------------------------
+func ConvertToNetworkAddress(ipStr, maskStr string) (string, error) {
+	// Parse the IP address
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return "", fmt.Errorf("invalid IP address: %s", ipStr)
+	}
+
+	// Parse the subnet mask
+	mask := net.ParseIP(maskStr)
+	if mask == nil {
+		return "", fmt.Errorf("invalid subnet mask: %s", maskStr)
+	}
+
+	// Convert IP and mask to 4-byte representations
+	ip = ip.To4()
+	mask = mask.To4()
+
+	if ip == nil || mask == nil {
+		return "", fmt.Errorf("invalid IP or subnet mask")
+	}
+
+	// Apply the subnet mask to the IP address
+	networkIP := make(net.IP, len(ip))
+	for i := 0; i < len(ip); i++ {
+		networkIP[i] = ip[i] & mask[i]
+	}
+
+	return networkIP.String(), nil
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// FetchTimeFromURL 从指定 URL 获取时间
+// ----------------------------------------------------------------------------------------------------------
 func FetchTimeFromURL(url string) (time.Time, error) {
 	resp, err := http.Get(url)
 	if err != nil {
@@ -330,4 +399,426 @@ func GetNetworkTime() (time.Time, error) {
 		}
 	}
 	return time.Time{}, fmt.Errorf("failed to fetch time from all servers")
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// ShellAddClient 添加客户端证书
+// ----------------------------------------------------------------------------------------------------------
+func ShellAddClient(cliId string, cliAddr string) error {
+	headClient := fmt.Sprintf("%s/openvpn.txt", GlobalOpenVPNPath.ConfigPath)
+	caClient := fmt.Sprintf("%s/ca.crt", GlobalOpenVPNPath.PkiPath)
+	taClient := fmt.Sprintf("%s/ta.key", GlobalOpenVPNPath.PkiPath)
+	ovpnClient := fmt.Sprintf("%s/%s.ovpn", GlobalOpenVPNPath.ConfigPath, cliId)
+	ccdClient := fmt.Sprintf("%s/%s", GlobalOpenVPNPath.CcdPath, cliId)
+	privateClient := fmt.Sprintf("%s/%s.key", GlobalOpenVPNPath.PrivatePath, cliId)
+	reqsClient := fmt.Sprintf("%s/%s.req", GlobalOpenVPNPath.ReqsPath, cliId)
+	issuedClient := fmt.Sprintf("%s/%s.crt", GlobalOpenVPNPath.IssuedPath, cliId)
+
+	// Define file paths
+	files := map[string]string{
+		"key":      privateClient,
+		"cert":     issuedClient,
+		"ca":       caClient,
+		"tls-auth": taClient,
+	}
+
+	// log.Println("headClient: ", headClient)
+	// log.Println("caClient: ", caClient)
+	// log.Println("taClient: ", taClient)
+	// log.Println("ccdClient: ", ccdClient)
+	// log.Println("ovpnClient: ", ovpnClient)
+	// log.Println("privateClient: ", privateClient)
+	// log.Println("reqsClient: ", reqsClient)
+	// log.Println("issuedClient: ", issuedClient)
+
+	// 删除配置文件
+	err := DeleteFileIfExists(ovpnClient)
+	if err != nil {
+		return fmt.Errorf("无法删除原配置文件")
+	}
+
+	// 删除CCD文件
+	err = DeleteFileIfExists(ccdClient)
+	if err != nil {
+		return fmt.Errorf("无法删除原CCD文件")
+	}
+
+	// 删除REQS文件
+	err = DeleteFileIfExists(reqsClient)
+	if err != nil {
+		return fmt.Errorf("无法删除原REQS文件")
+	}
+
+	// 删除PRIVATE文件
+	err = DeleteFileIfExists(privateClient)
+	if err != nil {
+		return fmt.Errorf("无法删除原PRIVATE文件")
+	}
+
+	// 删除ISSUE文件
+	err = DeleteFileIfExists(issuedClient)
+	if err != nil {
+		return fmt.Errorf("无法删除原ISSUE文件")
+	}
+
+	// 调用封装的函数
+	if err := ChangeDir(GlobalOpenVPNPath.EasyRsaPath); err != nil {
+		fmt.Println(err)
+	}
+
+	// 创建证书请求 (生成客户端私钥和CSR)
+	cmd := exec.Command(GlobalOpenVPNPath.EasyRsaFile, "build-client-full", cliId, "nopass")
+	cmd.Env = append(os.Environ(), "EASYRSA_BATCH=1") // 跳过确认步骤
+
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("无法创建私钥: %v Output: %s", err, string(output))
+	}
+
+	// 签发证书
+	cmd = exec.Command(GlobalOpenVPNPath.EasyRsaFile, "sign-req", "client", cliId)
+	cmd.Env = append(os.Environ(), "EASYRSA_BATCH=1") // 跳过确认步骤
+
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("无法签发证书: %v Output: %s", err, string(output))
+	}
+
+	// // 生成网络地址：
+	// clientNetworkAddr, err := ConvertToNetworkAddress(cliAddr, GlobalJWireGuardini.NetworkMask)
+	// if err != nil {
+	// 	return fmt.Errorf("无法生成网络地址: %s 目标地址 %s", err, clientNetworkAddr)
+	// }
+
+	changClientAddr := fmt.Sprintf("ifconfig-push %s %s",
+		cliAddr,
+		GlobalJWireGuardini.SubnetMask)
+
+	err = WriteToFile(ccdClient, changClientAddr)
+	if err != nil {
+		return fmt.Errorf("无法对ccd文件写入: %s file:%s ", err, ccdClient)
+	}
+
+	for _, file := range files {
+		if !CheckFileExists(file) {
+			return fmt.Errorf("该%s文件不存在, err:%v", file, err)
+		}
+	}
+
+	// Create the .ovpn file
+	err = CreateOVPNFile(headClient, ovpnClient, files)
+	if err != nil {
+		fmt.Println("Error creating .ovpn file:", err)
+		return fmt.Errorf("无法合成%s.ovpn, err:%v", cliId, err)
+	}
+
+	// log.Printf("Output:\n%s", output)
+	if (!CheckFileExists(privateClient)) ||
+		(!CheckFileExists(reqsClient)) ||
+		(!CheckFileExists(ccdClient)) ||
+		(!CheckFileExists(ovpnClient)) ||
+		(!CheckFileExists(issuedClient)) {
+
+		// 删除错误客户端文件
+		DeleteFileIfExists(ovpnClient)
+		DeleteFileIfExists(ccdClient)
+		DeleteFileIfExists(privateClient)
+		DeleteFileIfExists(reqsClient)
+		DeleteFileIfExists(issuedClient)
+
+		return fmt.Errorf("文件中创建客户端失败")
+	}
+
+	// fmt.Println("Client certificate generated and signed successfully.")
+	return nil
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// ShellUpdateClient 更新客户端证书
+// ----------------------------------------------------------------------------------------------------------
+func ShellUpdateClient(cliId string) error {
+	// log.Println("ShellUpdateClient")
+	headClient := fmt.Sprintf("%s/openvpn.txt", GlobalOpenVPNPath.ConfigPath)
+	caClient := fmt.Sprintf("%s/ca.crt", GlobalOpenVPNPath.PkiPath)
+	taClient := fmt.Sprintf("%s/ta.key", GlobalOpenVPNPath.PkiPath)
+	ccdClient := fmt.Sprintf("%s/%s", GlobalOpenVPNPath.CcdPath, cliId)
+	ovpnClient := fmt.Sprintf("%s/%s.ovpn", GlobalOpenVPNPath.ConfigPath, cliId)
+	privateClient := fmt.Sprintf("%s/%s.key", GlobalOpenVPNPath.PrivatePath, cliId)
+	reqsClient := fmt.Sprintf("%s/%s.req", GlobalOpenVPNPath.ReqsPath, cliId)
+	issuedClient := fmt.Sprintf("%s/%s.crt", GlobalOpenVPNPath.IssuedPath, cliId)
+
+	// Define file paths
+	files := map[string]string{
+		"key":      privateClient,
+		"cert":     issuedClient,
+		"ca":       caClient,
+		"tls-auth": taClient,
+	}
+
+	// log.Println("headClient: ", headClient)
+	// log.Println("caClient: ", caClient)
+	// log.Println("taClient: ", taClient)
+	// log.Println("ccdClient: ", ccdClient)
+	// log.Println("ovpnClient: ", ovpnClient)
+	// log.Println("privateClient: ", privateClient)
+	// log.Println("reqsClient: ", reqsClient)
+	// log.Println("issuedClient: ", issuedClient)
+
+	// 删除配置文件
+	err := DeleteFileIfExists(ovpnClient)
+	if err != nil {
+		return fmt.Errorf("无法删除原配置文件")
+	}
+
+	// 删除REQS文件
+	err = DeleteFileIfExists(reqsClient)
+	if err != nil {
+		return fmt.Errorf("无法删除原REQS文件")
+	}
+
+	// 删除PRIVATE文件
+	err = DeleteFileIfExists(privateClient)
+	if err != nil {
+		return fmt.Errorf("无法删除原PRIVATE文件")
+	}
+
+	// 删除ISSUE文件
+	err = DeleteFileIfExists(issuedClient)
+	if err != nil {
+		return fmt.Errorf("无法删除原ISSUE文件")
+	}
+
+	// 调用封装的函数
+	if err := ChangeDir(GlobalOpenVPNPath.EasyRsaPath); err != nil {
+		fmt.Println(err)
+	}
+
+	// 创建证书请求 (生成客户端私钥和CSR)
+	cmd := exec.Command(GlobalOpenVPNPath.EasyRsaFile, "build-client-full", cliId, "nopass")
+	cmd.Env = append(os.Environ(), "EASYRSA_BATCH=1") // 跳过确认步骤
+
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("无法创建私钥: %v Output: %s", err, string(output))
+	}
+
+	// 签发证书
+	cmd = exec.Command(GlobalOpenVPNPath.EasyRsaFile, "sign-req", "client", cliId)
+	cmd.Env = append(os.Environ(), "EASYRSA_BATCH=1") // 跳过确认步骤
+
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("无法签发证书: %v Output: %s", err, string(output))
+	}
+
+	for _, file := range files {
+		if !CheckFileExists(file) {
+			return fmt.Errorf("该%s文件不存在", file)
+		}
+	}
+
+	// Create the .ovpn file
+	err = CreateOVPNFile(headClient, ovpnClient, files)
+	if err != nil {
+		fmt.Println("Error creating .ovpn file:", err)
+		return fmt.Errorf("无法合成%s.ovpn, err:%v", cliId, err)
+	}
+
+	// log.Printf("Output:\n%s", output)
+	if (!CheckFileExists(privateClient)) ||
+		(!CheckFileExists(reqsClient)) ||
+		(!CheckFileExists(ovpnClient)) ||
+		(!CheckFileExists(issuedClient)) {
+
+		// 删除错误客户端文件
+		DeleteFileIfExists(ovpnClient)
+		DeleteFileIfExists(ccdClient)
+		DeleteFileIfExists(privateClient)
+		DeleteFileIfExists(reqsClient)
+		DeleteFileIfExists(issuedClient)
+
+		return fmt.Errorf("文件中创建客户端失败")
+	}
+
+	// fmt.Println("Client certificate generated and signed successfully.")
+	return nil
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// ShellUpdateClient 更新客户端证书
+// ----------------------------------------------------------------------------------------------------------
+func ShellDelClient(cliId string) error {
+	// log.Println("ShellDelClient")
+	ccdClient := fmt.Sprintf("%s/%s", GlobalOpenVPNPath.CcdPath, cliId)
+	ovpnClient := fmt.Sprintf("%s/%s.ovpn", GlobalOpenVPNPath.ConfigPath, cliId)
+	privateClient := fmt.Sprintf("%s/%s.key", GlobalOpenVPNPath.PrivatePath, cliId)
+	reqsClient := fmt.Sprintf("%s/%s.req", GlobalOpenVPNPath.ReqsPath, cliId)
+	issuedClient := fmt.Sprintf("%s/%s.crt", GlobalOpenVPNPath.IssuedPath, cliId)
+
+	// log.Println("ccdClient: ", ccdClient)
+	// log.Println("ovpnClient: ", ovpnClient)
+	// log.Println("privateClient: ", privateClient)
+	// log.Println("reqsClient: ", reqsClient)
+	// log.Println("issuedClient: ", issuedClient)
+
+	// 删除CCD
+	err := DeleteFileIfExists(ccdClient)
+	if err != nil {
+		return fmt.Errorf("无法删除原CCD文件")
+	}
+
+	// 删除配置文件
+	err = DeleteFileIfExists(ovpnClient)
+	if err != nil {
+		return fmt.Errorf("无法删除原配置文件")
+	}
+
+	// 删除REQS文件
+	err = DeleteFileIfExists(reqsClient)
+	if err != nil {
+		return fmt.Errorf("无法删除原REQS文件")
+	}
+
+	// 删除PRIVATE文件
+	err = DeleteFileIfExists(privateClient)
+	if err != nil {
+		return fmt.Errorf("无法删除原PRIVATE文件")
+	}
+
+	// 删除ISSUE文件
+	err = DeleteFileIfExists(issuedClient)
+	if err != nil {
+		return fmt.Errorf("无法删除原ISSUE文件")
+	}
+
+	return nil
+
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// ChangeDir 切换当前工作目录到指定路径
+// ----------------------------------------------------------------------------------------------------------
+func ChangeDir(dir string) error {
+	// 切换到目标目录
+	err := os.Chdir(dir)
+	if err != nil {
+		return fmt.Errorf("切换目录失败: %v", err)
+	}
+
+	// 获取并返回当前工作目录
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("获取当前目录失败: %v", err)
+	}
+
+	log.Println("当前目录:", currentDir)
+	return nil
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// ParseConfigFile 解析给定路径的配置文件，并返回 ifconfig-push 和 iroute 的值
+// ----------------------------------------------------------------------------------------------------------
+func ParseConfigFile(filePath string) (ipAddress, netmask string, err error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", "", fmt.Errorf("无法打开文件: %w", err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if strings.HasPrefix(line, "ifconfig-push") {
+			parts := strings.Fields(line)
+			if len(parts) >= 3 {
+				ipAddress = parts[1]
+				netmask = parts[2]
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", "", fmt.Errorf("读取文件错误: %w", err)
+	}
+
+	return ipAddress, netmask, nil
+}
+
+func ReadFile(filepath string) ([]byte, error) {
+	return ioutil.ReadFile(filepath)
+}
+
+func WriteFileWithTags(outputFile *os.File, tag, filepath string) error {
+	content, err := ReadFile(filepath)
+	if err != nil {
+		return err
+	}
+	_, err = outputFile.WriteString(fmt.Sprintf("<%s>\n", tag))
+	if err != nil {
+		return err
+	}
+	_, err = outputFile.Write(content)
+	if err != nil {
+		return err
+	}
+	_, err = outputFile.WriteString(fmt.Sprintf("</%s>\n", tag))
+	return err
+}
+
+func CreateOVPNFile(templatePath, outputPath string, files map[string]string) error {
+	// Open the output file
+	outputFile, err := os.Create(outputPath)
+	if err != nil {
+		return err
+	}
+	defer outputFile.Close()
+
+	// Read template file
+	templateContent, err := ReadFile(templatePath)
+	if err != nil {
+		return err
+	}
+	// Write template content
+	_, err = outputFile.Write(templateContent)
+	if err != nil {
+		return err
+	}
+
+	// Write all sections
+	for tag, filepath := range files {
+		err = WriteFileWithTags(outputFile, tag, filepath)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// checkIptablesRule checks if a specific iptables rule exists.
+func CheckIptablesRule(rule string) bool {
+	args := append([]string{"-C", "FORWARD"}, strings.Fields(rule)...)
+	cmd := exec.Command("iptables", args...)
+	err := cmd.Run()
+	return err == nil
+}
+
+// addIptablesRule adds an iptables rule.
+func AddIptablesRule(rule string) error {
+	args := append([]string{"-A", "FORWARD"}, strings.Fields(rule)...)
+	cmd := exec.Command("iptables", args...)
+	err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("failed to add iptables rule: %v", err)
+	}
+	return nil
+}
+
+// deleteIptablesRule deletes an iptables rule.
+func DeleteIptablesRule(rule string) error {
+	args := append([]string{"-D", "FORWARD"}, strings.Fields(rule)...)
+	cmd := exec.Command("iptables", args...)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("failed to delete iptables rule: %v, output: %s", err, out.String())
+	}
+	return nil
 }

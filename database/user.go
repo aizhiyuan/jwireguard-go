@@ -9,13 +9,23 @@ import (
 )
 
 type User struct {
+	UserID     sql.NullString `json:"user_id"`
+	SerID      sql.NullString `json:"ser_id"`
+	ParentID   sql.NullString `json:"parent_id"`
+	UserName   sql.NullString `json:"user_name"`
+	UserPasswd sql.NullString `json:"user_passwd"`
+	UserType   sql.NullInt64  `json:"user_type"`
+	UserStatus sql.NullString `json:"user_status"`
+}
+
+type ExportedUser struct {
 	UserID     string `json:"user_id"`
 	SerID      string `json:"ser_id"`
 	ParentID   string `json:"parent_id"`
 	UserName   string `json:"user_name"`
 	UserPasswd string `json:"user_passwd"`
-	UserType   int    `json:"user_type"`
-	UserStatus int    `json:"user_status"`
+	UserType   int64  `json:"user_type"`
+	UserStatus string `json:"user_status"`
 }
 
 // ----------------------------------------------------------------------------------------------------------
@@ -27,19 +37,45 @@ func (u *User) CreateUser(db *sql.DB) {
             "user_id" TEXT NOT NULL PRIMARY KEY,
 			"ser_id" TEXT,
             "parent_id" TEXT,
-            "user_name" TEXT NOT NULL,
-			"user_passwd" TEXT NOT NULL,
-			"user_type" INTEGER NOT NULL,
-			"user_status" INTEGER NOT NULL
+            "user_name" TEXT,
+			"user_passwd" TEXT,
+			"user_type" INTEGER,
+			"user_status" TEXT
         );`
 		_, err := db.Exec(createTableSQL)
 		if err != nil {
 			log.Fatalln("[CreateUser] Error creating table:", err)
 			return
 		}
-		log.Println("[CreateUser] Table 'user' created successfully!")
+		// log.Println("[CreateUser] Table 'user' created successfully!")
 	} else {
-		log.Println("[CreateUser] Table 'user' already exists.")
+		// log.Println("[CreateUser] Table 'user' already exists.")
+	}
+}
+
+// ToExported 负责将 CliConfig 转换为 ExportedCliConfig
+func (u *User) ToExported() ExportedUser {
+	return ExportedUser{
+		UserID:     nullStringToString(u.UserID),
+		SerID:      nullStringToString(u.SerID),
+		ParentID:   nullStringToString(u.ParentID),
+		UserName:   nullStringToString(u.UserName),
+		UserPasswd: nullStringToString(u.UserPasswd),
+		UserType:   nullInt64ToInt64(u.UserType),
+		UserStatus: nullStringToString(u.UserStatus),
+	}
+}
+
+// 将 ExportedCliConfig 转换为 CliConfig
+func (exported *ExportedUser) ConvertToUser() User {
+	return User{
+		UserID:     sql.NullString{String: exported.UserID, Valid: exported.UserID != ""},
+		SerID:      sql.NullString{String: exported.SerID, Valid: exported.SerID != ""},
+		ParentID:   sql.NullString{String: exported.ParentID, Valid: exported.ParentID != ""},
+		UserName:   sql.NullString{String: exported.UserName, Valid: exported.UserName != ""},
+		UserPasswd: sql.NullString{String: exported.UserPasswd, Valid: exported.UserPasswd != ""},
+		UserType:   sql.NullInt64{Int64: exported.UserType, Valid: exported.UserType != 0},
+		UserStatus: sql.NullString{String: exported.UserStatus, Valid: exported.UserStatus != ""},
 	}
 }
 
@@ -53,7 +89,7 @@ func (u *User) InsertUser(db *sql.DB) error {
 	}
 	defer stmt.Close()
 
-	_, err = stmt.Exec(u.UserID, u.SerID, u.ParentID, u.UserName, u.UserPasswd, u.UserType, u.UserStatus)
+	_, err = stmt.Exec(u.UserID.String, u.SerID.String, u.ParentID.String, u.UserName.String, u.UserPasswd.String, u.UserType.Int64, u.UserStatus.String)
 	if err != nil {
 		return err
 	}
@@ -66,12 +102,12 @@ func (u *User) InsertUser(db *sql.DB) error {
 // ----------------------------------------------------------------------------------------------------------
 func (u *User) GetUserByID(db *sql.DB) error {
 	query := "SELECT user_id, ser_id, parent_id, user_name, user_passwd, user_type, user_status FROM user WHERE user_id = ?"
-	row := db.QueryRow(query, u.UserID)
+	row := db.QueryRow(query, u.UserID.String)
 
 	err := row.Scan(&u.UserID, &u.SerID, &u.ParentID, &u.UserName, &u.UserPasswd, &u.UserType, &u.UserStatus)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return fmt.Errorf("User with UserID %s not found", u.UserID)
+			return fmt.Errorf("User with UserID %s not found", u.UserID.String)
 		}
 		return err
 	}
@@ -105,18 +141,23 @@ func (u *User) GetSubnetIdsByUserIds(db *sql.DB, userIds []string) ([]string, er
 	var result []string
 	subnetIDSet := make(map[string]struct{}) // 使用 map 记录已扫描的 subnet_id
 	for rows.Next() {
-		var subnetID string
+		var subnetID sql.NullString
 		if err := rows.Scan(&subnetID); err != nil {
 			return nil, err
 		}
 
 		// 如果字符串已经存在于 map 中，则跳过
-		if _, exists := subnetIDSet[subnetID]; exists {
+		if _, exists := subnetIDSet[subnetID.String]; exists {
 			continue
 		}
 
-		subnetIDSet[subnetID] = struct{}{} // 将 subnet_id 添加到 set 中
-		result = append(result, subnetID)
+		if subnetID.String == "" {
+			continue
+		}
+
+		subnetIDSet[subnetID.String] = struct{}{} // 将 subnet_id 添加到 set 中
+		result = append(result, subnetID.String)
+		// fmt.Println("subnetID:", subnetID.String)
 	}
 
 	// 检查是否有扫描错误
@@ -166,7 +207,7 @@ func (u *User) GetAllUsers(db *sql.DB) ([]User, error) {
 // 更新表中的部分数据
 // ----------------------------------------------------------------------------------------------------------
 func (u *User) UpdateUsers(db *sql.DB) error {
-	if u.UserID == "" {
+	if u.UserID.String == "" {
 		return errors.New("user_id cannot be empty")
 	}
 
@@ -175,29 +216,29 @@ func (u *User) UpdateUsers(db *sql.DB) error {
 	args := []interface{}{}
 
 	// 动态添加不为空的字段
-	if u.SerID != "" {
+	if u.SerID.String != "" {
 		setClauses = append(setClauses, "ser_id = ?")
-		args = append(args, u.SerID)
+		args = append(args, u.SerID.String)
 	}
-	if u.ParentID != "" {
+	if u.ParentID.String != "" {
 		setClauses = append(setClauses, "parent_id = ?")
-		args = append(args, u.ParentID)
+		args = append(args, u.ParentID.String)
 	}
-	if u.UserName != "" {
+	if u.UserName.String != "" {
 		setClauses = append(setClauses, "user_name = ?")
-		args = append(args, u.UserName)
+		args = append(args, u.UserName.String)
 	}
-	if u.UserPasswd != "" {
+	if u.UserPasswd.String != "" {
 		setClauses = append(setClauses, "user_passwd = ?")
-		args = append(args, u.UserPasswd)
+		args = append(args, u.UserPasswd.String)
 	}
-	if u.UserType != -1 {
+	if u.UserType.Int64 != 0 {
 		setClauses = append(setClauses, "user_type = ?")
-		args = append(args, u.UserType)
+		args = append(args, u.UserType.Int64)
 	}
-	if u.UserStatus != -1 {
+	if u.UserStatus.String != "" {
 		setClauses = append(setClauses, "user_status = ?")
-		args = append(args, u.UserStatus)
+		args = append(args, u.UserStatus.String)
 	}
 
 	// 如果没有任何字段需要更新
@@ -207,7 +248,7 @@ func (u *User) UpdateUsers(db *sql.DB) error {
 
 	// 构建最终的 SQL 语句
 	query := fmt.Sprintf("UPDATE user SET %s WHERE user_id = ?", strings.Join(setClauses, ", "))
-	args = append(args, u.UserID)
+	args = append(args, u.UserID.String)
 
 	// 准备并执行 SQL 语句
 	stmt, err := db.Prepare(query)
@@ -234,7 +275,7 @@ func (u *User) DeleteUsers(db *sql.DB) error {
 	}
 	defer stmt.Close()
 
-	_, err = stmt.Exec(u.UserID)
+	_, err = stmt.Exec(u.UserID.String)
 	if err != nil {
 		return err
 	}
@@ -301,7 +342,7 @@ func (u *User) CheckLogin(db *sql.DB) (bool, error) {
 	var userID string
 	// Prepare the SQL query to prevent SQL injection
 	query := "SELECT user_id FROM user WHERE user_name = ? AND user_passwd = ?"
-	err := db.QueryRow(query, u.UserName, u.UserPasswd).Scan(&userID)
+	err := db.QueryRow(query, u.UserName.String, u.UserPasswd.String).Scan(&userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// No matching record found, return false indicating invalid credentials
@@ -312,7 +353,7 @@ func (u *User) CheckLogin(db *sql.DB) (bool, error) {
 	}
 
 	// Set the UserID in the User struct if login is successful
-	u.UserID = userID
+	u.UserID.String = userID
 
 	// Return true indicating a successful login
 	return true, nil
