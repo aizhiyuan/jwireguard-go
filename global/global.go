@@ -488,9 +488,12 @@ func ShellAddClient(cliId string, cliAddr string) error {
 	// 	return fmt.Errorf("无法生成网络地址: %s 目标地址 %s", err, clientNetworkAddr)
 	// }
 
-	changClientAddr := fmt.Sprintf("ifconfig-push %s %s",
+	changClientAddr := fmt.Sprintf("ifconfig-push %s %s\npush \"route %s.0.0 %s %s\"",
 		cliAddr,
-		GlobalJWireGuardini.SubnetMask)
+		GlobalJWireGuardini.SubnetMask,
+		GlobalJWireGuardini.IPPrefix,
+		GlobalJWireGuardini.NetworkMask,
+		cliAddr)
 
 	err = WriteToFile(ccdClient, changClientAddr)
 	if err != nil {
@@ -821,4 +824,18 @@ func DeleteIptablesRule(rule string) error {
 		return fmt.Errorf("failed to delete iptables rule: %v, output: %s", err, out.String())
 	}
 	return nil
+}
+
+func SplitIP(ip string) (string, string) {
+	// 使用 strings.LastIndex 分割最后一个点的位置
+	lastDotIndex := strings.LastIndex(ip, ".")
+	if lastDotIndex == -1 {
+		return "", ""
+	}
+
+	// 分割 IP 地址和最后一部分
+	ipPart := ip[:lastDotIndex]
+	lastPart := ip[lastDotIndex+1:]
+
+	return ipPart, lastPart
 }

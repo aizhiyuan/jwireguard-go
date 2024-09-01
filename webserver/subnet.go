@@ -7,6 +7,7 @@ import (
 	"jwireguard/database"
 	"jwireguard/global"
 	"log"
+	"net"
 	"net/http"
 )
 
@@ -17,12 +18,18 @@ func registerSubnetRoutes() {
 }
 
 func AddSubnet(w http.ResponseWriter, r *http.Request) {
-	log.Println("[AddSubnet] start")
+	addr := r.RemoteAddr
+	ip, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		log.Printf("[add_subnet] Error parsing IP address code %d", http.StatusInternalServerError)
+		return
+	}
+	log.Printf("[add_subnet] client [%s:%s]", ip, port)
 	// 确保请求方法是POST
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		// 如果参数为空，返回 JSON 错误响应
-		log.Println("[AddSubnet] 请求类型不是Post")
+		log.Println("[add_subnet] 请求类型不是Post")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
@@ -39,7 +46,7 @@ func AddSubnet(w http.ResponseWriter, r *http.Request) {
 	// 使用封装的parseJSONBody函数解析请求体
 	if err := parseJSONBody(r, &exportPortSubnet); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		log.Printf("[AddSubnet] 解析JSON请求参数错误, err:%v", err)
+		log.Printf("[add_subnet] 解析JSON请求参数错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
@@ -49,6 +56,8 @@ func AddSubnet(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(responseError)
 		return
 	}
+
+	log.Printf("[add_subnet] json:[%+v]", exportPortSubnet)
 	// 将字符串类型转为SQL类型
 	portSubnet := exportPortSubnet.ConvertToSubnet()
 
@@ -56,7 +65,7 @@ func AddSubnet(w http.ResponseWriter, r *http.Request) {
 		(portSubnet.CliNum.Int32 <= 0 && portSubnet.CliNum.Int32 >= 255) ||
 		(portSubnet.SerNum.Int32 <= 0 && portSubnet.SerNum.Int32 >= 255) {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Println("[AddSubnet] 请求参数为空")
+		log.Println("[add_subnet] 请求参数为空")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求参数为空",
@@ -76,10 +85,10 @@ func AddSubnet(w http.ResponseWriter, r *http.Request) {
 	portSubnet.CreateSubnet(global.GlobalDB)
 
 	// 查询子网是否存在
-	err := portSubnet.GetSubnetBySerId(global.GlobalDB)
+	err = portSubnet.GetSubnetBySerId(global.GlobalDB)
 	if err == nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[AddSubnet] 子网已存在, err:%v", err)
+		log.Printf("[add_subnet] 子网已存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("子网已存在, err:%v", err),
@@ -94,7 +103,7 @@ func AddSubnet(w http.ResponseWriter, r *http.Request) {
 	err = portSubnet.InsertSubnet(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[AddSubnet] 添加子网失败, err:%v", err)
+		log.Printf("[add_subnet] 添加子网失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("添加子网失败, err:%v", err),
@@ -114,7 +123,7 @@ func AddSubnet(w http.ResponseWriter, r *http.Request) {
 	if !global.CheckIptablesRule(rules) {
 		err := global.AddIptablesRule(rules)
 		if err != nil {
-			log.Printf("[AddSubnet] 路由配置错误 '%s': %v", rules, err)
+			log.Printf("[add_subnet] 路由配置错误 '%s': %v", rules, err)
 			responseError := ResponseError{
 				Status:  false,
 				Message: fmt.Sprintf("路由配置错误 '%s': %v", rules, err),
@@ -136,12 +145,18 @@ func AddSubnet(w http.ResponseWriter, r *http.Request) {
 }
 
 func EditSubnet(w http.ResponseWriter, r *http.Request) {
-	log.Println("[EditSubnet] start")
+	addr := r.RemoteAddr
+	ip, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		log.Printf("[edit_subnet] Error parsing IP address code %d", http.StatusInternalServerError)
+		return
+	}
+	log.Printf("[edit_subnet] client [%s:%s]", ip, port)
 	// 确保请求方法是POST
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		// 如果参数为空，返回 JSON 错误响应
-		log.Println("[EditSubnet] 请求类型不是Post")
+		log.Println("[edit_subnet] 请求类型不是Post")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
@@ -158,7 +173,7 @@ func EditSubnet(w http.ResponseWriter, r *http.Request) {
 	// 使用封装的parseJSONBody函数解析请求体
 	if err := parseJSONBody(r, &exportPortSubnet); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		log.Printf("[EditSubnet] 解析JSON请求参数错误, err:%v", err)
+		log.Printf("[edit_subnet] 解析JSON请求参数错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
@@ -168,14 +183,14 @@ func EditSubnet(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(responseError)
 		return
 	}
-
+	log.Printf("[edit_subnet] json:[%+v]", exportPortSubnet)
 	portSubnet := exportPortSubnet.ConvertToSubnet()
 
 	if portSubnet.SerID.String == "" ||
 		(portSubnet.CliNum.Int32 <= 0 && portSubnet.CliNum.Int32 >= 255) ||
 		(portSubnet.SerNum.Int32 <= 0 && portSubnet.SerNum.Int32 >= 255) {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Println("[EditSubnet] 请求参数为空")
+		log.Println("[edit_subnet] 请求参数为空")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求参数为空",
@@ -192,10 +207,10 @@ func EditSubnet(w http.ResponseWriter, r *http.Request) {
 	portSubnetbak := portSubnet
 
 	// 查询子网是否存在
-	err := portSubnetbak.GetSubnetBySerId(global.GlobalDB)
+	err = portSubnetbak.GetSubnetBySerId(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[EditSubnet] 子网不存在, err:%v", err)
+		log.Printf("[edit_subnet] 子网不存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("子网不存在, err:%v", err),
@@ -210,7 +225,7 @@ func EditSubnet(w http.ResponseWriter, r *http.Request) {
 	err = portSubnet.UpdateSubnet(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[EditSubnet] 子网更新失败, err:%v", err)
+		log.Printf("[edit_subnet] 子网更新失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("子网更新失败, err:%v", err),
@@ -233,7 +248,7 @@ func EditSubnet(w http.ResponseWriter, r *http.Request) {
 		if global.CheckIptablesRule(delRules) {
 			err := global.DeleteIptablesRule(delRules)
 			if err != nil {
-				log.Printf("[EditSubnet] 路由删除错误 '%s': %v", delRules, err)
+				log.Printf("[edit_subnet] 路由删除错误 '%s': %v", delRules, err)
 				responseError := ResponseError{
 					Status:  false,
 					Message: fmt.Sprintf("路由删除错误 '%s': %v", delRules, err),
@@ -254,7 +269,7 @@ func EditSubnet(w http.ResponseWriter, r *http.Request) {
 		if !global.CheckIptablesRule(addRules) {
 			err := global.AddIptablesRule(addRules)
 			if err != nil {
-				log.Printf("[EditSubnet] 路由配置错误 '%s': %v", addRules, err)
+				log.Printf("[edit_subnet] 路由配置错误 '%s': %v", addRules, err)
 				responseError := ResponseError{
 					Status:  false,
 					Message: fmt.Sprintf("路由配置错误 '%s': %v", addRules, err),
@@ -277,15 +292,21 @@ func EditSubnet(w http.ResponseWriter, r *http.Request) {
 }
 
 func DelSubnet(w http.ResponseWriter, r *http.Request) {
-	log.Println("[DelSubnet] start")
+	addr := r.RemoteAddr
+	ip, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		log.Printf("[del_subnet] Error parsing IP address code %d", http.StatusInternalServerError)
+		return
+	}
+	log.Printf("[del_subnet] client [%s:%s]", ip, port)
 	// 解析 URL 参数
 	query := r.URL.Query()
 	serId := query.Get("ser_id")
-
+	log.Printf("[del_subnet] ser_id:[%s]", serId)
 	// 判断参数是否为空
 	if serId == "" {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Println("[DelSubnet] 参数为空")
+		log.Println("[del_subnet] 参数为空")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "参数为空",
@@ -303,10 +324,10 @@ func DelSubnet(w http.ResponseWriter, r *http.Request) {
 
 	// 查看子网是否存在
 	subnet.SerID.String = serId
-	err := subnet.GetSubnetBySerId(global.GlobalDB)
+	err = subnet.GetSubnetBySerId(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[DelSubnet] 子网不存在, err:%v", err)
+		log.Printf("[del_subnet] 子网不存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("子网不存在, err:%v", err),
@@ -321,7 +342,7 @@ func DelSubnet(w http.ResponseWriter, r *http.Request) {
 	err = subnet.DeleteSubnet(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[DelSubnet] 子网删除失败, err:%v", err)
+		log.Printf("[del_subnet] 子网删除失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("子网删除失败, err:%v", err),
@@ -340,7 +361,7 @@ func DelSubnet(w http.ResponseWriter, r *http.Request) {
 	if global.CheckIptablesRule(rules) {
 		err := global.DeleteIptablesRule(rules)
 		if err != nil {
-			log.Printf("[DelSubnet] 路由删除错误 '%s': %v", rules, err)
+			log.Printf("[del_subnet] 路由删除错误 '%s': %v", rules, err)
 			responseError := ResponseError{
 				Status:  false,
 				Message: fmt.Sprintf("路由删除错误 '%s': %v", rules, err),

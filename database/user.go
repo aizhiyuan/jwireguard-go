@@ -116,6 +116,24 @@ func (u *User) GetUserByID(db *sql.DB) error {
 }
 
 // ----------------------------------------------------------------------------------------------------------
+// 通过 UserName 查询用户信息
+// ----------------------------------------------------------------------------------------------------------
+func (u *User) GetUserByName(db *sql.DB) error {
+	query := "SELECT user_id, ser_id, parent_id, user_name, user_passwd, user_type, user_status FROM user WHERE user_name = ?"
+	row := db.QueryRow(query, u.UserName.String)
+
+	err := row.Scan(&u.UserID, &u.SerID, &u.ParentID, &u.UserName, &u.UserPasswd, &u.UserType, &u.UserStatus)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("User with UserName %s not found", u.UserName.String)
+		}
+		return err
+	}
+
+	return nil
+}
+
+// ----------------------------------------------------------------------------------------------------------
 // 通过多个 UserID 查询子网信息，去除重复的 ser_id
 // ----------------------------------------------------------------------------------------------------------
 func (u *User) GetSubnetIdsByUserIds(db *sql.DB, userIds []string) ([]string, error) {

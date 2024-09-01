@@ -78,6 +78,40 @@ func IsDevOnline() {
 	}
 }
 
+func IsIptablesSubnet() {
+	log.Println("[IsIptablesSubnet] start")
+	for {
+		// 创建数据库连接
+		subnet := database.Subnet{}
+		// 初始化数据库
+		subnet.CreateSubnet(global.GlobalDB)
+		// 遍历所有的数据
+		subnets, err := subnet.GetAllSubnet(global.GlobalDB)
+		if err != nil {
+			continue
+		}
+
+		for _, person := range subnets {
+			// 配置Iptables
+			rules := fmt.Sprintf("-s %s.%d.0/24 -d %s.0.0/16 -j ACCEPT",
+				global.GlobalJWireGuardini.IPPrefix,
+				person.SerNum.Int32,
+				global.GlobalJWireGuardini.IPPrefix)
+
+			if !global.CheckIptablesRule(rules) {
+				err := global.AddIptablesRule(rules)
+				if err != nil {
+					log.Printf("[IsIptablesSubnet] 路由配置错误 '%s': %v", rules, err)
+				} else {
+					log.Printf("[IsIptablesSubnet] 路由配置成功 '%s'", rules)
+				}
+
+			}
+		}
+		time.Sleep(60 * time.Second) // 等待 60 秒
+	}
+}
+
 // var DB *sql.DB
 func main() {
 	// 日志初始化
@@ -147,6 +181,9 @@ func main() {
 
 	// 启动判断设备在线线程
 	go IsDevOnline()
+
+	// 启动判断IPTABLES
+	go IsIptablesSubnet()
 
 	// fmt.Println("UDPPort:", global.GlobalJWireGuardini.IPPrefix)
 

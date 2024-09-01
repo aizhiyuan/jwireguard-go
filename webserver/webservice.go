@@ -23,6 +23,7 @@ type ResponseSuccess struct {
 	Message string `json:"message"`
 }
 
+
 func StartServer(port string) {
 	http.HandleFunc("/", homeHandler)
 

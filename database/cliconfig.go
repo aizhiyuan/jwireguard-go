@@ -67,7 +67,7 @@ func (c *CliConfig) CreateCliConfig(db *sql.DB) {
             "cli_address" TEXT,
 			"cli_mapping" TEXT,
 			"cli_status" TEXT,
-			"ts" TEXT,
+			"ts" INTEGER,
 			"edit_stauts" TEXT,
 			"online_status" TEXT
         );`
