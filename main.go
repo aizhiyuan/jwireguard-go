@@ -58,6 +58,7 @@ func IsDevOnline() {
 
 				// 只需要更改在线的设备
 				if person.CliStatus.String == "true" {
+
 					log.Printf("[IsDevOnline] 客户端编码:[%s] 客户端名称:[%s] 时间戳:[%d] 客户端在线状态:[%s]",
 						person.CliID.String,
 						person.CliName.String,

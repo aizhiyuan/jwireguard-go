@@ -228,7 +228,6 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(jsonData)
-
 }
 
 func GetCliConfig(w http.ResponseWriter, r *http.Request) {
@@ -258,6 +257,26 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 创建用户配置
+	var cliConfig = database.CliConfig{}
+	// 初始化
+	cliConfig.CreateCliConfig(global.GlobalDB)
+
+	// 获取配置
+	cliConfig.CliID.String = cliId
+	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
+	if err != nil {
+		log.Printf("[get_cli_config] 客户端不存在, err:%v", err)
+		responseError := ResponseError{
+			Status:  false,
+			Message: fmt.Sprintf("客户端不存在, err:%v", err),
+			Error:   2,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(responseError)
+		return
+	}
+
 	headClient := fmt.Sprintf("%s/openvpn.txt", global.GlobalOpenVPNPath.ConfigPath)
 	caClient := fmt.Sprintf("%s/ca.crt", global.GlobalOpenVPNPath.PkiPath)
 	taClient := fmt.Sprintf("%s/ta.key", global.GlobalOpenVPNPath.PkiPath)
@@ -279,7 +298,7 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 			responseError := ResponseError{
 				Status:  false,
 				Message: fmt.Sprintf("该%s文件不存在", file),
-				Error:   2,
+				Error:   3,
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(responseError)
@@ -288,46 +307,26 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create the .ovpn file
-
 	err = global.CreateOVPNFile(headClient, ovpnClient, files)
 	if err != nil {
 		log.Printf("[get_cli_config] 无法合成%s.ovpn, err:%v", cliId, err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法合成%s.ovpn, err:%v", cliId, err),
-			Error:   2,
+			Error:   4,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
 		return
 	}
 
-	// 创建用户配置
-	var cliConfig = database.CliConfig{}
-	// 初始化
-	cliConfig.CreateCliConfig(global.GlobalDB)
-
-	// 获取配置
-	cliConfig.CliID.String = cliId
-	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
-	if err != nil {
-		log.Printf("[get_cli_config] 获取客户端配置失败, err:%v", err)
-		responseError := ResponseError{
-			Status:  false,
-			Message: fmt.Sprintf("获取客户端配置失败, err:%v", err),
-			Error:   3,
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responseError)
-		return
-	}
 	// 检查配置文件是否存在
 	if !global.CheckFileExists(ovpnClient) {
 		log.Println("[get_cli_config] 客户端配置不存在")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "客户端配置不存在",
-			Error:   4,
+			Error:   5,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -340,7 +339,7 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端配置读取失败, err:%v", err),
-			Error:   5,
+			Error:   6,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -367,7 +366,7 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法将JSON对象转为字符串, err:%v", err),
-			Error:   6,
+			Error:   7,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -510,6 +509,31 @@ func GetCliInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	changClientFile := fmt.Sprintf("%s/%s",
+		global.GlobalOpenVPNPath.CcdPath,
+		cliConfig.CliID.String)
+
+	changClientAddr := fmt.Sprintf("ifconfig-push %s %s\npush \"route %s.0.0 %s %s\"\n",
+		cliConfig.CliAddress.String,
+		global.GlobalJWireGuardini.SubnetMask,
+		global.GlobalJWireGuardini.IPPrefix,
+		global.GlobalJWireGuardini.NetworkMask,
+		cliConfig.CliAddress.String)
+
+	err = global.WriteToFile(changClientFile, changClientAddr)
+	if err != nil {
+		// 如果参数为空，返回 JSON 错误响应
+		log.Printf("[update_cli_addr] 在文件中修改客户端IP地址失败, err:%v", err)
+		responseError := ResponseError{
+			Status:  false,
+			Message: fmt.Sprintf("在文件中修改客户端IP地址失败, err:%v", err),
+			Error:   3,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(responseError)
+		return
+	}
+
 	responseCliInfo := ResponseCliInfo{
 		Status:  true,
 		Message: "获取客户端列表成功!",
@@ -520,11 +544,11 @@ func GetCliInfo(w http.ResponseWriter, r *http.Request) {
 	jsonData, err := json.Marshal(responseCliInfo)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[get_cli_list] 无法将JSON对象转为字符串:", err)
+		log.Printf("[get_cli_list] 无法将JSON对象转为字符串, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
-			Message: fmt.Sprintln("无法将JSON对象转为字符串:", err),
-			Error:   3,
+			Message: fmt.Sprintf("无法将JSON对象转为字符串, err:%v", err),
+			Error:   4,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -534,7 +558,6 @@ func GetCliInfo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(jsonData)
-
 }
 
 func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
@@ -1092,7 +1115,6 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(responseSuccess)
-
 }
 
 func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {

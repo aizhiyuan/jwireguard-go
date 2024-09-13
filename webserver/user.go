@@ -315,6 +315,7 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cliConfig.CliID = portUser.UserID
 	cliConfig.CliName = portUser.UserName
 	cliConfig.CliMapping.String = ""
 	cliConfig.CliStatus.String = "false"
@@ -325,17 +326,33 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 	cliConfig.Timestamp.Int64 = 0
 	cliConfig.OnlineStatus.String = "true"
 
-	err = cliConfig.InsertCliConfig(global.GlobalDB)
+	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
-		log.Printf("[add_user] 数据库创建客户端失败, err:%v", err)
-		responseError := ResponseError{
-			Status:  false,
-			Message: fmt.Sprintf("数据库创建客户端失败, err:%v", err),
-			Error:   8,
+		err = cliConfig.InsertCliConfig(global.GlobalDB)
+		if err != nil {
+			log.Printf("[add_user] 数据库创建客户端失败, err:%v", err)
+			responseError := ResponseError{
+				Status:  false,
+				Message: fmt.Sprintf("数据库创建客户端失败, err:%v", err),
+				Error:   8,
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(responseError)
+			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responseError)
-		return
+	} else {
+		err = cliConfig.UpdateCliConfig(global.GlobalDB)
+		if err != nil {
+			log.Printf("[add_user] 数据库创建客户端失败, err:%v", err)
+			responseError := ResponseError{
+				Status:  false,
+				Message: fmt.Sprintf("数据库创建客户端失败, err:%v", err),
+				Error:   9,
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(responseError)
+			return
+		}
 	}
 
 	// 返回 JSON 响应
@@ -495,9 +512,13 @@ func DelUser(w http.ResponseWriter, r *http.Request) {
 
 	// 创建数据库对象
 	user := database.User{}
+	// 创建数据库对象
+	cliConfig := database.CliConfig{}
 
 	// 初始化数据库
 	user.CreateUser(global.GlobalDB)
+	// 初始化数据库
+	cliConfig.CreateCliConfig(global.GlobalDB)
 
 	// 查看子网是否存在
 	user.UserID.String = userID
@@ -515,6 +536,7 @@ func DelUser(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(responseError)
 		return
 	}
+	cliConfig.CliID.String = userID
 
 	// 删除子网
 	err = user.DeleteUsers(global.GlobalDB)
@@ -543,6 +565,22 @@ func DelUser(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
 		return
+	}
+
+	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
+	if err == nil {
+		err = cliConfig.DeleteCliConfig(global.GlobalDB)
+		if err != nil {
+			log.Printf("[del_user] 无法删除客户端, err:%v", err)
+			responseError := ResponseError{
+				Status:  false,
+				Message: fmt.Sprintf("无法删除客户端, err:%v", err),
+				Error:   6,
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(responseError)
+			return
+		}
 	}
 
 	// 返回结果
