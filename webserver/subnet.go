@@ -81,11 +81,29 @@ func AddSubnet(w http.ResponseWriter, r *http.Request) {
 		portSubnet.SerID.String = global.GenerateMD5(portSubnet.SerName.String)
 	}
 
+	GlobalDB, err := database.InitDB(global.GlobalJWireGuardini.DataBasePath)
+	if err != nil {
+		log.Printf("[add_subnet] 无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err)
+		responseError := ResponseError{
+			Status:  false,
+			Message: fmt.Sprintf("无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err),
+			Error:   1,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(responseError)
+		return
+	}
+	log.Printf("[add_subnet] 数据库 %s 打开成功!", global.GlobalJWireGuardini.DataBasePath)
+	defer GlobalDB.Close()
+
+	// 查询连接状态
+	database.MonitorDatabase(GlobalDB)
+
 	// 初始化数据库
-	portSubnet.CreateSubnet(global.GlobalDB)
+	portSubnet.CreateSubnet(GlobalDB)
 
 	// 查询子网是否存在
-	err = portSubnet.GetSubnetBySerId(global.GlobalDB)
+	err = portSubnet.GetSubnetBySerId(GlobalDB)
 	if err == nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[add_subnet] 子网已存在, err:%v", err)
@@ -100,7 +118,7 @@ func AddSubnet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 添加数据库
-	err = portSubnet.InsertSubnet(global.GlobalDB)
+	err = portSubnet.InsertSubnet(GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[add_subnet] 添加子网失败, err:%v", err)
@@ -201,13 +219,31 @@ func EditSubnet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	GlobalDB, err := database.InitDB(global.GlobalJWireGuardini.DataBasePath)
+	if err != nil {
+		log.Printf("[edit_subnet] 无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err)
+		responseError := ResponseError{
+			Status:  false,
+			Message: fmt.Sprintf("无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err),
+			Error:   1,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(responseError)
+		return
+	}
+	log.Printf("[edit_subnet] 数据库 %s 打开成功!", global.GlobalJWireGuardini.DataBasePath)
+	defer GlobalDB.Close()
+
+	// 查询连接状态
+	database.MonitorDatabase(GlobalDB)
+
 	// 初始化数据库
-	portSubnet.CreateSubnet(global.GlobalDB)
+	portSubnet.CreateSubnet(GlobalDB)
 
 	portSubnetbak := portSubnet
 
 	// 查询子网是否存在
-	err = portSubnetbak.GetSubnetBySerId(global.GlobalDB)
+	err = portSubnetbak.GetSubnetBySerId(GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[edit_subnet] 子网不存在, err:%v", err)
@@ -222,7 +258,7 @@ func EditSubnet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 添加数据库
-	err = portSubnet.UpdateSubnet(global.GlobalDB)
+	err = portSubnet.UpdateSubnet(GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[edit_subnet] 子网更新失败, err:%v", err)
@@ -317,14 +353,31 @@ func DelSubnet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	GlobalDB, err := database.InitDB(global.GlobalJWireGuardini.DataBasePath)
+	if err != nil {
+		log.Printf("[del_subnet] 无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err)
+		responseError := ResponseError{
+			Status:  false,
+			Message: fmt.Sprintf("无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err),
+			Error:   1,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(responseError)
+		return
+	}
+	log.Printf("[del_subnet] 数据库 %s 打开成功!", global.GlobalJWireGuardini.DataBasePath)
+
+	// 查询连接状态
+	database.MonitorDatabase(GlobalDB)
+
 	// 创建数据库对象
 	subnet := database.Subnet{}
 	// 初始化数据库
-	subnet.CreateSubnet(global.GlobalDB)
+	subnet.CreateSubnet(GlobalDB)
 
 	// 查看子网是否存在
 	subnet.SerID.String = serId
-	err = subnet.GetSubnetBySerId(global.GlobalDB)
+	err = subnet.GetSubnetBySerId(GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[del_subnet] 子网不存在, err:%v", err)
@@ -339,7 +392,7 @@ func DelSubnet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 删除子网
-	err = subnet.DeleteSubnet(global.GlobalDB)
+	err = subnet.DeleteSubnet(GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[del_subnet] 子网删除失败, err:%v", err)

@@ -2,6 +2,8 @@ package database
 
 import (
 	"database/sql"
+	"jwireguard/global"
+	"log"
 
 	_ "github.com/glebarez/sqlite"
 )
@@ -20,6 +22,21 @@ func InitDB(filepath string) (*sql.DB, error) {
 	}
 
 	return db, nil
+}
+
+// 定期检查数据库连接的状态
+func MonitorDatabase(db *sql.DB) {
+	err := db.Ping()
+	// log.Printf("[MonitorDatabase] 数据库状态%v", err)
+	if err != nil {
+		var errOpen error
+		db, errOpen = InitDB(global.GlobalJWireGuardini.DataBasePath) // 尝试重新打开数据库
+		if errOpen != nil {
+			log.Println("[MonitorDatabase] 数据库打开失败:", errOpen)
+		} else {
+			log.Println("[MonitorDatabase] 数据库重新连接.")
+		}
+	}
 }
 
 // nullStringToString 将 sql.NullString 转换为 string，处理 NULL 值

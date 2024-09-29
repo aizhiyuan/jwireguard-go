@@ -18,7 +18,7 @@ type CliConfig struct {
 	CliMapping   sql.NullString `json:"cli_mapping"`
 	CliStatus    sql.NullString `json:"cli_status"`
 	Timestamp    sql.NullInt64  `json:"ts"`
-	EditStatus   sql.NullString `json:"edit_stauts"`
+	EditStatus   sql.NullInt32  `json:"edit_stauts"`
 	OnlineStatus sql.NullString `json:"online_status"`
 }
 
@@ -32,7 +32,7 @@ type ExportedCliConfig struct {
 	CliMapping   string `json:"cli_mapping"`
 	CliStatus    string `json:"cli_status"`
 	Timestamp    int64  `json:"ts"`
-	EditStatus   string `json:"edit_stauts"`
+	EditStatus   int32  `json:"edit_stauts"`
 	OnlineStatus string `json:"online_status"`
 }
 
@@ -48,7 +48,7 @@ func (exported *ExportedCliConfig) ConvertToCliConfig() CliConfig {
 		CliMapping:   sql.NullString{String: exported.CliMapping, Valid: exported.CliMapping != ""},
 		CliStatus:    sql.NullString{String: exported.CliStatus, Valid: exported.CliStatus != ""},
 		Timestamp:    sql.NullInt64{Int64: exported.Timestamp, Valid: exported.Timestamp != -1},
-		EditStatus:   sql.NullString{String: exported.EditStatus, Valid: exported.EditStatus != ""},
+		EditStatus:   sql.NullInt32{Int32: exported.EditStatus, Valid: exported.EditStatus != -1},
 		OnlineStatus: sql.NullString{String: exported.OnlineStatus, Valid: exported.OnlineStatus != ""},
 	}
 }
@@ -68,7 +68,7 @@ func (c *CliConfig) CreateCliConfig(db *sql.DB) {
 			"cli_mapping" TEXT,
 			"cli_status" TEXT,
 			"ts" INTEGER,
-			"edit_stauts" TEXT,
+			"edit_stauts" INTEGER,
 			"online_status" TEXT
         );`
 		_, err := db.Exec(createTableSQL)
@@ -94,7 +94,7 @@ func (c *CliConfig) ToExported() ExportedCliConfig {
 		CliMapping:   nullStringToString(c.CliMapping),
 		CliStatus:    nullStringToString(c.CliStatus),
 		Timestamp:    nullInt64ToInt64(c.Timestamp),
-		EditStatus:   nullStringToString(c.EditStatus),
+		EditStatus:   nullInt32ToInt32(c.EditStatus),
 		OnlineStatus: nullStringToString(c.OnlineStatus),
 	}
 }
@@ -109,7 +109,7 @@ func (c *CliConfig) InsertCliConfig(db *sql.DB) error {
 	}
 	defer stmt.Close()
 
-	_, err = stmt.Exec(c.CliID.String, c.SerID.String, c.CliSN.String, c.CliName.String, c.SerName.String, c.CliAddress.String, c.CliMapping.String, c.CliStatus.String, c.Timestamp, c.EditStatus.String, c.OnlineStatus.String)
+	_, err = stmt.Exec(c.CliID.String, c.SerID.String, c.CliSN.String, c.CliName.String, c.SerName.String, c.CliAddress.String, c.CliMapping.String, c.CliStatus.String, c.Timestamp.Int64, c.EditStatus.Int32, c.OnlineStatus.String)
 	if err != nil {
 		return err
 	}
@@ -262,9 +262,9 @@ func (c *CliConfig) UpdateCliConfig(db *sql.DB) error {
 		setClauses = append(setClauses, "ts = ?")
 		args = append(args, c.Timestamp.Int64)
 	}
-	if c.EditStatus.String != "" {
+	if c.EditStatus.Int32 != -1 {
 		setClauses = append(setClauses, "edit_stauts = ?")
-		args = append(args, c.EditStatus.String)
+		args = append(args, c.EditStatus.Int32)
 	}
 	if c.OnlineStatus.String != "" {
 		setClauses = append(setClauses, "online_status = ?")

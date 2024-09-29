@@ -29,14 +29,19 @@ import (
 
 // JWireGuardIni 结构体用于封装 INI 文件的数据
 type JWireGuardIni struct {
-	IPPrefix    string // IP前缀
-	DefaultUser string // 默认用户
-	OpenVpnPath string // OpenVpn 路径
-	OpenSslFile string // OpenSSL 程序路径
-	SubnetMask  string //子网掩码
-	NetworkMask string //网络子网掩码
-	ServerPort  uint16 //服务器端口
-	UDPPort     uint16 //UDP服务器端口
+	DataBasePath string
+	IPPrefix     string // IP前缀
+	DefaultUser  string // 默认用户
+	OpenVpnPath  string // OpenVpn 路径
+	OpenSslFile  string // OpenSSL 程序路径
+	SubnetMask   string //子网掩码
+	NetworkMask  string //网络子网掩码
+	ServerPort   uint16 //服务器端口
+	UDPPort      uint16 //UDP服务器端口
+	CorpIP       string //企业微信的CorpID
+	Secret       string //企业微信的Secret
+	AgentID      int    //企业微信的AgentID
+	Touser       string //企业微信的Touser
 }
 
 type OpenVPNPath struct {
@@ -59,7 +64,7 @@ var GlobalDB *sql.DB // This is a global variable
 var GlobalDefaultUserMd5 string
 var GlobalJWireGuardini *JWireGuardIni
 var GlobalEncryptKey string
-
+var GlobalJWireGuardDBFile string
 var GlobalOpenVPNPath OpenVPNPath
 
 // 定义多个时间服务器
@@ -172,6 +177,7 @@ func LoadOrCreateJWireGuardIni(filePath string) (*JWireGuardIni, error) {
 		cfg = ini.Empty()
 
 		// 创建默认设置
+		cfg.Section("GENERAL SETTING").Key("DATA_BASE_PATH").SetValue("jwireguard.db")
 		cfg.Section("GENERAL SETTING").Key("IP_PREFIX").SetValue("10.100")
 		cfg.Section("GENERAL SETTING").Key("DEFAULT_USER").SetValue("admin")
 		cfg.Section("GENERAL SETTING").Key("OPENVPN_PATH").SetValue("/etc/openvpn")
@@ -180,6 +186,10 @@ func LoadOrCreateJWireGuardIni(filePath string) (*JWireGuardIni, error) {
 		cfg.Section("GENERAL SETTING").Key("NETWORK_MASK").SetValue("255.255.255.0")
 		cfg.Section("GENERAL SETTING").Key("SERVER_PORT").SetValue("1092")
 		cfg.Section("GENERAL SETTING").Key("UDP_PORT").SetValue("1092")
+		cfg.Section("MESSAGE PUSH").Key("CORP_ID").SetValue("")
+		cfg.Section("MESSAGE PUSH").Key("SECRET").SetValue("")
+		cfg.Section("MESSAGE PUSH").Key("AGENT_ID").SetValue("1000002")
+		cfg.Section("MESSAGE PUSH").Key("TOUSER").SetValue("@all")
 
 		// 保存到文件
 		if err = cfg.SaveTo(filePath); err != nil {
@@ -195,14 +205,19 @@ func LoadOrCreateJWireGuardIni(filePath string) (*JWireGuardIni, error) {
 
 	// 加载配置到结构体
 	jwg := &JWireGuardIni{
-		IPPrefix:    cfg.Section("GENERAL SETTING").Key("IP_PREFIX").String(),
-		DefaultUser: cfg.Section("GENERAL SETTING").Key("DEFAULT_USER").String(),
-		OpenVpnPath: cfg.Section("GENERAL SETTING").Key("OPENVPN_PATH").String(),
-		OpenSslFile: cfg.Section("GENERAL SETTING").Key("OPENSSL_FILE").String(),
-		SubnetMask:  cfg.Section("GENERAL SETTING").Key("SUBNET_MAKE").String(),
-		NetworkMask: cfg.Section("GENERAL SETTING").Key("NETWORK_MASK").String(),
-		ServerPort:  uint16(cfg.Section("GENERAL SETTING").Key("SERVER_PORT").MustUint(1092)),
-		UDPPort:     uint16(cfg.Section("GENERAL SETTING").Key("UDP_PORT").MustUint(1092)),
+		DataBasePath: cfg.Section("GENERAL SETTING").Key("DATA_BASE_PATH").String(),
+		IPPrefix:     cfg.Section("GENERAL SETTING").Key("IP_PREFIX").String(),
+		DefaultUser:  cfg.Section("GENERAL SETTING").Key("DEFAULT_USER").String(),
+		OpenVpnPath:  cfg.Section("GENERAL SETTING").Key("OPENVPN_PATH").String(),
+		OpenSslFile:  cfg.Section("GENERAL SETTING").Key("OPENSSL_FILE").String(),
+		SubnetMask:   cfg.Section("GENERAL SETTING").Key("SUBNET_MAKE").String(),
+		NetworkMask:  cfg.Section("GENERAL SETTING").Key("NETWORK_MASK").String(),
+		ServerPort:   uint16(cfg.Section("GENERAL SETTING").Key("SERVER_PORT").MustUint(1092)),
+		UDPPort:      uint16(cfg.Section("GENERAL SETTING").Key("UDP_PORT").MustUint(1092)),
+		CorpIP:       cfg.Section("MESSAGE PUSH").Key("CORP_ID").String(),
+		Secret:       cfg.Section("MESSAGE PUSH").Key("SECRET").String(),
+		AgentID:      cfg.Section("MESSAGE PUSH").Key("AGENT_ID").MustInt(1000002),
+		Touser:       cfg.Section("MESSAGE PUSH").Key("TOUSER").String(),
 	}
 
 	return jwg, nil
@@ -488,7 +503,7 @@ func ShellAddClient(cliId string, cliAddr string) error {
 	// 	return fmt.Errorf("无法生成网络地址: %s 目标地址 %s", err, clientNetworkAddr)
 	// }
 
-	changClientAddr := fmt.Sprintf("ifconfig-push %s %s\npush \"route %s.0.0 %s %s\"",
+	changClientAddr := fmt.Sprintf("ifconfig-push %s %s\npush \"route %s.0.0 %s %s\"\n",
 		cliAddr,
 		GlobalJWireGuardini.SubnetMask,
 		GlobalJWireGuardini.IPPrefix,
@@ -838,4 +853,57 @@ func SplitIP(ip string) (string, string) {
 	lastPart := ip[lastDotIndex+1:]
 
 	return ipPart, lastPart
+}
+
+// 解析 CIDR 并输出 IP、子网掩码和网络地址
+func ParseCIDR(cidr string) (string, string, string, error) {
+	ip, ipNet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	// 获取 IP 地址
+	ipAddress := ip.String()
+
+	// 获取子网掩码
+	subnetMask := net.IP(ipNet.Mask).String()
+
+	// 计算网络地址
+	networkAddress := ip.Mask(ipNet.Mask).String()
+
+	return ipAddress, subnetMask, networkAddress, nil
+}
+
+// 每个连接都通过一个goroutine独立处理
+func HandleConnection(conn net.Conn) {
+	// 在函数结束时关闭连接，确保资源被释放
+	defer conn.Close()
+
+	// 打印连接的客户端地址信息
+	// fmt.Printf("Accepted connection from %v\n", conn.RemoteAddr())
+
+	// 创建一个缓冲读取器，用于从TCP连接中逐行读取数据
+	reader := bufio.NewReader(conn)
+
+	// 无限循环，处理客户端发送的数据
+	for {
+		// 从连接中读取一行数据，直到遇到换行符 '\n'
+		message, err := reader.ReadString('\n')
+		if err != nil {
+			// 如果读取数据时出错（如客户端断开连接），打印错误并退出循环
+			fmt.Println("[global] Error reading from connection:", err)
+			break
+		}
+
+		// 打印接收到的消息
+		// fmt.Printf("Received message: %s", message)
+
+		// 将接收到的消息原样返回给客户端
+		_, err = conn.Write([]byte(message))
+		if err != nil {
+			// 如果写入数据时发生错误，打印错误并退出循环
+			log.Println("[global] Error writing to connection:", err)
+			break
+		}
+	}
 }

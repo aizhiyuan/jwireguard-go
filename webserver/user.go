@@ -89,14 +89,32 @@ func CheckUsersLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	GlobalDB, err := database.InitDB(global.GlobalJWireGuardini.DataBasePath)
+	if err != nil {
+		log.Printf("[check_users_login] 无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err)
+		responseError := ResponseError{
+			Status:  false,
+			Message: fmt.Sprintf("无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err),
+			Error:   1,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(responseError)
+		return
+	}
+	log.Printf("[check_users_login] 数据库 %s 打开成功!", global.GlobalJWireGuardini.DataBasePath)
+	defer GlobalDB.Close()
+
+	// 查询连接状态
+	database.MonitorDatabase(GlobalDB)
+
 	// 创建数据库对象
 	dbuser := database.User{}
 	// 初始化
-	dbuser.CreateUser(global.GlobalDB)
+	dbuser.CreateUser(GlobalDB)
 
 	// 查询账号
 	dbuser.UserName.String = portCheckUserLogin.UserName
-	err = dbuser.GetUserByName(global.GlobalDB)
+	err = dbuser.GetUserByName(GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[check_users_login] 账号认证失败, err:%v", err)
@@ -244,11 +262,26 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 		portUser.UserID.String = global.GenerateMD5(portUser.UserName.String)
 	}
 
+	GlobalDB, err := database.InitDB(global.GlobalJWireGuardini.DataBasePath)
+	if err != nil {
+		log.Printf("[add_user] 无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err)
+		responseError := ResponseError{
+			Status:  false,
+			Message: fmt.Sprintf("无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err),
+			Error:   1,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(responseError)
+		return
+	}
+	log.Printf("[add_user] 数据库 %s 打开成功!", global.GlobalJWireGuardini.DataBasePath)
+	defer GlobalDB.Close()
+
 	// 初始化数据库
-	portUser.CreateUser(global.GlobalDB)
+	portUser.CreateUser(GlobalDB)
 
 	// 判断用户是否存在
-	err = portUser.GetUserByID(global.GlobalDB)
+	err = portUser.GetUserByID(GlobalDB)
 	if err == nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[add_user] 用户已存在, err:%v", err)
@@ -279,7 +312,7 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 
 	// 添加用户
 	portUser.UserPasswd.String = encryptedPasswd
-	err = portUser.InsertUser(global.GlobalDB)
+	err = portUser.InsertUser(GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[add_user] 添加用户失败, err:%v", err)
@@ -293,10 +326,13 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 查询连接状态
+	database.MonitorDatabase(GlobalDB)
+
 	// 创建数据库对象
 	cliConfig := database.CliConfig{}
 	// 初始化数据库
-	cliConfig.CreateCliConfig(global.GlobalDB)
+	cliConfig.CreateCliConfig(GlobalDB)
 
 	userAddr := fmt.Sprintf("%s.0.1", global.GlobalJWireGuardini.IPPrefix)
 
@@ -319,16 +355,16 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 	cliConfig.CliName = portUser.UserName
 	cliConfig.CliMapping.String = ""
 	cliConfig.CliStatus.String = "false"
-	cliConfig.EditStatus.String = "false"
+	cliConfig.EditStatus.Int32 = 0
 	cliConfig.CliSN.String = ""
 	cliConfig.SerID.String = ""
 	cliConfig.SerName.String = ""
 	cliConfig.Timestamp.Int64 = 0
 	cliConfig.OnlineStatus.String = "true"
 
-	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
+	err = cliConfig.GetCliConfigByCliID(GlobalDB)
 	if err != nil {
-		err = cliConfig.InsertCliConfig(global.GlobalDB)
+		err = cliConfig.InsertCliConfig(GlobalDB)
 		if err != nil {
 			log.Printf("[add_user] 数据库创建客户端失败, err:%v", err)
 			responseError := ResponseError{
@@ -341,7 +377,7 @@ func AddUser(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		err = cliConfig.UpdateCliConfig(global.GlobalDB)
+		err = cliConfig.UpdateCliConfig(GlobalDB)
 		if err != nil {
 			log.Printf("[add_user] 数据库创建客户端失败, err:%v", err)
 			responseError := ResponseError{
@@ -421,13 +457,28 @@ func EditUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	GlobalDB, err := database.InitDB(global.GlobalJWireGuardini.DataBasePath)
+	if err != nil {
+		log.Printf("[edit_user] 无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err)
+		responseError := ResponseError{
+			Status:  false,
+			Message: fmt.Sprintf("无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err),
+			Error:   1,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(responseError)
+		return
+	}
+	log.Printf("[edit_user] 数据库 %s 打开成功!", global.GlobalJWireGuardini.DataBasePath)
+	defer GlobalDB.Close()
+
 	// 初始化数据库
-	portUser.CreateUser(global.GlobalDB)
+	portUser.CreateUser(GlobalDB)
 
 	portUserbak := portUser
 
 	// 判断用户是否存在
-	err = portUserbak.GetUserByID(global.GlobalDB)
+	err = portUserbak.GetUserByID(GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[edit_user] 用户不存在, err:%v", err)
@@ -460,7 +511,7 @@ func EditUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 更新用户
-	err = portUser.UpdateUsers(global.GlobalDB)
+	err = portUser.UpdateUsers(GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[edit_user] 用户修改失败, err:%v", err)
@@ -510,20 +561,38 @@ func DelUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	GlobalDB, err := database.InitDB(global.GlobalJWireGuardini.DataBasePath)
+	if err != nil {
+		log.Printf("[del_user] 无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err)
+		responseError := ResponseError{
+			Status:  false,
+			Message: fmt.Sprintf("无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err),
+			Error:   1,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(responseError)
+		return
+	}
+	log.Printf("[del_user] 数据库 %s 打开成功!", global.GlobalJWireGuardini.DataBasePath)
+	defer GlobalDB.Close()
+
+	// 查询连接状态
+	database.MonitorDatabase(GlobalDB)
+
 	// 创建数据库对象
 	user := database.User{}
 	// 创建数据库对象
 	cliConfig := database.CliConfig{}
 
 	// 初始化数据库
-	user.CreateUser(global.GlobalDB)
+	user.CreateUser(GlobalDB)
 	// 初始化数据库
-	cliConfig.CreateCliConfig(global.GlobalDB)
+	cliConfig.CreateCliConfig(GlobalDB)
 
 	// 查看子网是否存在
 	user.UserID.String = userID
 
-	err = user.GetUserByID(global.GlobalDB)
+	err = user.GetUserByID(GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[del_user] 用户不存在, err:%v", err)
@@ -539,7 +608,7 @@ func DelUser(w http.ResponseWriter, r *http.Request) {
 	cliConfig.CliID.String = userID
 
 	// 删除子网
-	err = user.DeleteUsers(global.GlobalDB)
+	err = user.DeleteUsers(GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[del_user] 用户删除失败, err:%v", err)
@@ -567,9 +636,9 @@ func DelUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
+	err = cliConfig.GetCliConfigByCliID(GlobalDB)
 	if err == nil {
-		err = cliConfig.DeleteCliConfig(global.GlobalDB)
+		err = cliConfig.DeleteCliConfig(GlobalDB)
 		if err != nil {
 			log.Printf("[del_user] 无法删除客户端, err:%v", err)
 			responseError := ResponseError{

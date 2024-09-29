@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -22,7 +23,6 @@ type ResponseSuccess struct {
 	Status  bool   `json:"status"`
 	Message string `json:"message"`
 }
-
 
 func StartServer(port string) {
 	http.HandleFunc("/", homeHandler)
@@ -88,9 +88,17 @@ func FindUnusedIP(ccdDir string, ipPrefix string) (string, error) {
 				line := scanner.Text()
 				if strings.HasPrefix(line, "ifconfig-push") {
 					fields := strings.Fields(line)
-					if len(fields) > 1 && strings.HasPrefix(fields[1], ipPrefix) {
-						usedIPs[fields[1]] = true
+					// log.Printf("[未判断] 文件中的IP:%s", fields[1])
+					// 调用 splitIP 函数
+					if len(fields) > 1 && fields[1] != "" {
+						newIP, _ := SplitIP(fields[1])
+						if newIP == ipPrefix {
+							// log.Printf("[已判断] 文件中的IP:%s", fields[1])
+							usedIPs[fields[1]] = true
+
+						}
 					}
+
 				}
 			}
 
@@ -108,11 +116,27 @@ func FindUnusedIP(ccdDir string, ipPrefix string) (string, error) {
 	// 找到未使用的IP地址
 	for i := 1; i <= 254; i++ {
 		ip := fmt.Sprintf("%s.%d", ipPrefix, i)
-		if !usedIPs[ip] {
+		useIPStatus := usedIPs[ip]
+		log.Printf("[判断状态] 当前IP:%s 当前状态:%v", ip, useIPStatus)
+		if !useIPStatus {
 			return ip, nil
 		}
 	}
 
 	// 如果所有IP地址都被占用，返回错误
 	return "", errors.New("all IP addresses in the range are used")
+}
+
+// SplitIP 函数用于将 IP 地址分割成前三部分和最后一部分
+func SplitIP(ip string) (string, string) {
+	// 将 IP 地址按照 "." 分割
+	parts := strings.Split(ip, ".")
+
+	// 组合前三部分
+	newIP := strings.Join(parts[:3], ".")
+
+	// 获取最后一部分
+	lastPart := parts[3]
+
+	return newIP, lastPart
 }
