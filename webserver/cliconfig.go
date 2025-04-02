@@ -118,33 +118,18 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	GlobalDB, err := database.InitDB(global.GlobalJWireGuardini.DataBasePath)
-	if err != nil {
-		log.Printf("[get_sub_network_list] 无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err)
-		responseError := ResponseError{
-			Status:  false,
-			Message: fmt.Sprintf("无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err),
-			Error:   1,
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responseError)
-		return
-	}
-	log.Printf("[get_sub_network_list] 数据库 %s 打开成功!", global.GlobalJWireGuardini.DataBasePath)
-	defer GlobalDB.Close()
-
 	// 查询连接状态
-	database.MonitorDatabase(GlobalDB)
+	database.MonitorDatabase(global.GlobalDB)
 
 	var user = database.User{}
 	var subnet = database.Subnet{}
 
 	// 初始化
-	user.CreateUser(GlobalDB)
-	subnet.CreateSubnet(GlobalDB)
+	user.CreateUser(global.GlobalDB)
+	subnet.CreateSubnet(global.GlobalDB)
 
 	// 遍历用户表
-	userIds, err := user.QueryUserIds(GlobalDB, userId)
+	userIds, err := user.QueryUserIds(global.GlobalDB, userId)
 	if err != nil {
 		log.Printf("[get_sub_network_list] 无法获取用户, err:%v", err)
 		// 如果参数为空，返回 JSON 错误响应
@@ -172,7 +157,7 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 	}
 	// fmt.Println("Ids:", userIds)
 	// 遍历子网表
-	serIds, err := user.GetSubnetIdsByUserIds(GlobalDB, userIds)
+	serIds, err := user.GetSubnetIdsByUserIds(global.GlobalDB, userIds)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[get_sub_network_list] 无法获取子网序号组, err:%v", err)
@@ -200,7 +185,7 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 获取子网列表
-	subnets, err := subnet.GetSubnetBySerIDs(GlobalDB, serIds)
+	subnets, err := subnet.GetSubnetBySerIDs(global.GlobalDB, serIds)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[get_sub_network_list] 无法获取子网列表, err:%v", err)
@@ -284,32 +269,17 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	GlobalDB, err := database.InitDB(global.GlobalJWireGuardini.DataBasePath)
-	if err != nil {
-		log.Printf("[get_cli_config] 无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err)
-		responseError := ResponseError{
-			Status:  false,
-			Message: fmt.Sprintf("无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err),
-			Error:   1,
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responseError)
-		return
-	}
-	log.Printf("[get_cli_config] 数据库 %s 打开成功!", global.GlobalJWireGuardini.DataBasePath)
-	defer GlobalDB.Close()
-
 	// 查询连接状态
-	database.MonitorDatabase(GlobalDB)
+	database.MonitorDatabase(global.GlobalDB)
 
 	// 创建用户配置
 	var cliConfig = database.CliConfig{}
 	// 初始化
-	cliConfig.CreateCliConfig(GlobalDB)
+	cliConfig.CreateCliConfig(global.GlobalDB)
 
 	// 获取配置
 	cliConfig.CliID.String = cliId
-	err = cliConfig.GetCliConfigByCliID(GlobalDB)
+	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
 		log.Printf("[get_cli_config] 客户端不存在, err:%v", err)
 		responseError := ResponseError{
@@ -449,31 +419,16 @@ func GetCliList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	GlobalDB, err := database.InitDB(global.GlobalJWireGuardini.DataBasePath)
-	if err != nil {
-		log.Printf("[get_cli_list] 无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err)
-		responseError := ResponseError{
-			Status:  false,
-			Message: fmt.Sprintf("无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err),
-			Error:   1,
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responseError)
-		return
-	}
-	log.Printf("[get_cli_list] 数据库 %s 打开成功!", global.GlobalJWireGuardini.DataBasePath)
-	defer GlobalDB.Close()
-
 	// 查询连接状态
-	database.MonitorDatabase(GlobalDB)
+	database.MonitorDatabase(global.GlobalDB)
 
 	// 创建用户配置
 	cliConfig := database.CliConfig{}
 	// 初始化
-	cliConfig.CreateCliConfig(GlobalDB)
+	cliConfig.CreateCliConfig(global.GlobalDB)
 	// 获取用户配置
 	cliConfig.SerID.String = serId
-	cliConfigs, err := cliConfig.GetCliConfigBySerID(GlobalDB)
+	cliConfigs, err := cliConfig.GetCliConfigBySerID(global.GlobalDB)
 	if err != nil {
 		log.Printf("[get_cli_list] 获取客户端列表失败, err:%v", err)
 		responseError := ResponseError{
@@ -552,32 +507,17 @@ func GetCliInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	GlobalDB, err := database.InitDB(global.GlobalJWireGuardini.DataBasePath)
-	if err != nil {
-		log.Printf("[get_cli_list] 无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err)
-		responseError := ResponseError{
-			Status:  false,
-			Message: fmt.Sprintf("无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err),
-			Error:   1,
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responseError)
-		return
-	}
-	log.Printf("[get_cli_list] 数据库 %s 打开成功!", global.GlobalJWireGuardini.DataBasePath)
-	defer GlobalDB.Close()
-
 	// 查询连接状态
-	database.MonitorDatabase(GlobalDB)
+	database.MonitorDatabase(global.GlobalDB)
 
 	// 创建用户配置
 	cliConfig := database.CliConfig{}
 	// 初始化
-	cliConfig.CreateCliConfig(GlobalDB)
+	cliConfig.CreateCliConfig(global.GlobalDB)
 	// 获取用户配置
 	cliConfig.CliID.String = cliId
 
-	err = cliConfig.GetCliConfigByCliID(GlobalDB)
+	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
 		log.Printf("[get_cli_list] 获取客户端信息失败!, err:%v", err)
 		responseError := ResponseError{
@@ -703,8 +643,9 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 	// 计算CliKeyString
 	cliKeyString := fmt.Sprintf("%s%s", serNameSHA3, portCliConfig.CliSN)
 	cliKeyValue := global.GenerateMD5(cliKeyString)
-	log.Println("[add_cli_config] KEY值校验错误")
+
 	if cliKeyValue != portCliConfig.CliKey {
+		log.Println("[add_cli_config] KEY值校验错误")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "KEY值校验错误",
@@ -715,35 +656,20 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	GlobalDB, err := database.InitDB(global.GlobalJWireGuardini.DataBasePath)
-	if err != nil {
-		log.Printf("[add_cli_config] 无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err)
-		responseError := ResponseError{
-			Status:  false,
-			Message: fmt.Sprintf("无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err),
-			Error:   1,
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responseError)
-		return
-	}
-	log.Printf("[add_cli_config] 数据库 %s 打开成功!", global.GlobalJWireGuardini.DataBasePath)
-	defer GlobalDB.Close()
-
 	// 查询连接状态
-	database.MonitorDatabase(GlobalDB)
+	database.MonitorDatabase(global.GlobalDB)
 
 	// 创建数据库对象
 	subnet := database.Subnet{}
 	cliConfig := database.CliConfig{}
 
 	// 数据库初始化
-	subnet.CreateSubnet(GlobalDB)
-	cliConfig.CreateCliConfig(GlobalDB)
+	subnet.CreateSubnet(global.GlobalDB)
+	cliConfig.CreateCliConfig(global.GlobalDB)
 
 	// 查看客户端是否存在
 	cliConfig.CliID.String = portCliConfig.CliID
-	err = cliConfig.GetCliConfigByCliID(GlobalDB)
+	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err == nil {
 		log.Printf("[add_cli_config] 客户端已存在!, err:%v", err)
 		responseError := ResponseError{
@@ -758,10 +684,10 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 
 	// 查询子网是否存在
 	subnet.SerID.String = serNameSHA3
-	err = subnet.GetSubnetBySerId(GlobalDB)
+	err = subnet.GetSubnetBySerId(global.GlobalDB)
 	if err != nil {
 		//获取新的网段
-		newSubNum, err := subnet.GetNewSubnetNumber(GlobalDB)
+		newSubNum, err := subnet.GetNewSubnetNumber(global.GlobalDB)
 		if err != nil {
 			log.Printf("[add_cli_config] 子网网段已满, err:%v", err)
 			responseError := ResponseError{
@@ -776,7 +702,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 		subnet.SerNum.Int32 = newSubNum
 		subnet.CliNum.Int32 = 1
 		subnet.SerName.String = portCliConfig.SerName
-		err = subnet.InsertSubnet(GlobalDB)
+		err = subnet.InsertSubnet(global.GlobalDB)
 		if err != nil {
 			log.Printf("[add_cli_config] 子网添加失败, err:%v", err)
 			responseError := ResponseError{
@@ -793,7 +719,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 
 	// 查看客户端在数据中是否存在
 	cliConfig.CliID.String = portCliConfig.CliID
-	err = cliConfig.GetCliConfigByCliID(GlobalDB)
+	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err == nil {
 		log.Printf("[add_cli_config] 客户端已存在, err:%v", err)
 		responseError := ResponseError{
@@ -847,7 +773,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 	cliConfig.Timestamp.Int64 = time.Now().Unix()
 	cliConfig.OnlineStatus.String = "true"
 
-	err = cliConfig.InsertCliConfig(GlobalDB)
+	err = cliConfig.InsertCliConfig(global.GlobalDB)
 	if err != nil {
 		log.Printf("[add_cli_config] 数据库创建客户端失败, err:%v", err)
 		responseError := ResponseError{
@@ -926,32 +852,17 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	GlobalDB, err := database.InitDB(global.GlobalJWireGuardini.DataBasePath)
-	if err != nil {
-		log.Printf("[update_cli_config] 无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err)
-		responseError := ResponseError{
-			Status:  false,
-			Message: fmt.Sprintf("无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err),
-			Error:   1,
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responseError)
-		return
-	}
-	log.Printf("[update_cli_config] 数据库 %s 打开成功!", global.GlobalJWireGuardini.DataBasePath)
-	defer GlobalDB.Close()
-
 	// 查询连接状态
-	database.MonitorDatabase(GlobalDB)
+	database.MonitorDatabase(global.GlobalDB)
 
 	// 创建客户端对象
 	cliConfig := database.CliConfig{}
 	// 初始化
-	cliConfig.CreateCliConfig(GlobalDB)
+	cliConfig.CreateCliConfig(global.GlobalDB)
 	// 判断是否有客户端
 	// 查看客户端在数据中是否存在
 	cliConfig.CliID.String = portCliConfig.CliID
-	err = cliConfig.GetCliConfigByCliID(GlobalDB)
+	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
 		log.Printf("[update_cli_config] 客户端不存在, err:%v", err)
 		responseError := ResponseError{
@@ -1027,35 +938,20 @@ func DelCliConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	GlobalDB, err := database.InitDB(global.GlobalJWireGuardini.DataBasePath)
-	if err != nil {
-		log.Printf("[del_cli_config] 无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err)
-		responseError := ResponseError{
-			Status:  false,
-			Message: fmt.Sprintf("无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err),
-			Error:   1,
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responseError)
-		return
-	}
-	log.Printf("[del_cli_config] 数据库 %s 打开成功!", global.GlobalJWireGuardini.DataBasePath)
-	defer GlobalDB.Close()
-
 	// 查询连接状态
-	database.MonitorDatabase(GlobalDB)
+	database.MonitorDatabase(global.GlobalDB)
 
 	// 创建数据库对象
 	subnet := database.Subnet{}
 	cliConfig := database.CliConfig{}
 
 	// 初始化数据库
-	subnet.CreateSubnet(GlobalDB)
-	cliConfig.CreateCliConfig(GlobalDB)
+	subnet.CreateSubnet(global.GlobalDB)
+	cliConfig.CreateCliConfig(global.GlobalDB)
 
 	// 查询客户端
 	cliConfig.CliID.String = cliId
-	err = cliConfig.GetCliConfigByCliID(GlobalDB)
+	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
 		log.Printf("[del_cli_config] 客户端不存在, err:%v", err)
 		responseError := ResponseError{
@@ -1070,7 +966,7 @@ func DelCliConfig(w http.ResponseWriter, r *http.Request) {
 
 	// 删除客户端
 
-	err = cliConfig.DeleteCliConfig(GlobalDB)
+	err = cliConfig.DeleteCliConfig(global.GlobalDB)
 	if err != nil {
 		log.Printf("[del_cli_config] 删除客户端失败, err:%v", err)
 		responseError := ResponseError{
@@ -1084,7 +980,7 @@ func DelCliConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 查询客户端
-	err = cliConfig.GetCliConfigByCliID(GlobalDB)
+	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err == nil {
 		log.Printf("[del_cli_config] 客户端删除失败, err:%v", err)
 		responseError := ResponseError{
@@ -1176,31 +1072,16 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	GlobalDB, err := database.InitDB(global.GlobalJWireGuardini.DataBasePath)
-	if err != nil {
-		log.Printf("[update_cli_info] 无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err)
-		responseError := ResponseError{
-			Status:  false,
-			Message: fmt.Sprintf("无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err),
-			Error:   1,
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responseError)
-		return
-	}
-	log.Printf("[update_cli_info] 数据库 %s 打开成功!", global.GlobalJWireGuardini.DataBasePath)
-	defer GlobalDB.Close()
-
 	// 查询连接状态
-	database.MonitorDatabase(GlobalDB)
+	database.MonitorDatabase(global.GlobalDB)
 
 	// 初始化数据库.
-	postClientInfo.CreateCliConfig(GlobalDB)
+	postClientInfo.CreateCliConfig(global.GlobalDB)
 
 	// 备份数据
 	postClientInfoBak := postClientInfoRecv.ConvertToCliConfig()
 	// 查看客户端是否存在
-	err = postClientInfoBak.GetCliConfigByCliID(GlobalDB)
+	err = postClientInfoBak.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[update_cli_info] 客户端不存在, err:%v", err)
@@ -1215,7 +1096,7 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 更新数据
-	err = postClientInfo.UpdateCliConfig(GlobalDB)
+	err = postClientInfo.UpdateCliConfig(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[update_cli_info] 修改客户端信息失败, err:%v", err)
@@ -1326,24 +1207,9 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	GlobalDB, err := database.InitDB(global.GlobalJWireGuardini.DataBasePath)
-	if err != nil {
-		log.Printf("[update_cli_addr] 无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err)
-		responseError := ResponseError{
-			Status:  false,
-			Message: fmt.Sprintf("无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err),
-			Error:   1,
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responseError)
-		return
-	}
-	log.Printf("[update_cli_addr] 数据库 %s 打开成功!", global.GlobalJWireGuardini.DataBasePath)
-	defer GlobalDB.Close()
-
 	// 查看客户端是否存在
 	clientConfig.CliID.String = postClientAddress.CliID
-	err = clientConfig.GetCliConfigByCliID(GlobalDB)
+	err = clientConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[update_cli_addr] 客户端不存在, err:%v", err)
@@ -1375,7 +1241,7 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 	// 更新客户端IP地址
 	clientConfig.CliAddress.String = cliAddress
 	// 更新数据
-	err = clientConfig.UpdateCliConfig(GlobalDB)
+	err = clientConfig.UpdateCliConfig(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[update_cli_addr] 在数据库中修改客户端IP地址失败, err:%v", err)
@@ -1485,24 +1351,9 @@ func UpdateCliMap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	GlobalDB, err := database.InitDB(global.GlobalJWireGuardini.DataBasePath)
-	if err != nil {
-		log.Printf("[update_cli_map] 无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err)
-		responseError := ResponseError{
-			Status:  false,
-			Message: fmt.Sprintf("无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err),
-			Error:   1,
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responseError)
-		return
-	}
-	log.Printf("[update_cli_map] 数据库 %s 打开成功!", global.GlobalJWireGuardini.DataBasePath)
-	defer GlobalDB.Close()
-
 	// 查看客户端是否存在
 	clientConfig.CliID.String = postClientAddressMapping.CliID
-	err = clientConfig.GetCliConfigByCliID(GlobalDB)
+	err = clientConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[update_cli_map] 客户端不存在, err:%v", err)
@@ -1669,34 +1520,19 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	GlobalDB, err := database.InitDB(global.GlobalJWireGuardini.DataBasePath)
-	if err != nil {
-		log.Printf("[update_subnet_cli_addr] 无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err)
-		responseError := ResponseError{
-			Status:  false,
-			Message: fmt.Sprintf("无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err),
-			Error:   1,
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(responseError)
-		return
-	}
-	log.Printf("[update_subnet_cli_addr] 数据库 %s 打开成功!", global.GlobalJWireGuardini.DataBasePath)
-	defer GlobalDB.Close()
-
 	// 查询连接状态
-	database.MonitorDatabase(GlobalDB)
+	database.MonitorDatabase(global.GlobalDB)
 
 	// 创建数据库对象
 	subnet := database.Subnet{}
 	cliConfig := database.CliConfig{}
 	// 初始化数据库
-	subnet.CreateSubnet(GlobalDB)
-	cliConfig.CreateCliConfig(GlobalDB)
+	subnet.CreateSubnet(global.GlobalDB)
+	cliConfig.CreateCliConfig(global.GlobalDB)
 
 	// 获取子网网段
 	subnet.SerID.String = portUpdateClientAddress.SerID
-	err = subnet.GetSubnetBySerId(GlobalDB)
+	err = subnet.GetSubnetBySerId(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[update_subnet_cli_addr] 子网不存在, err:%v", err)
@@ -1712,7 +1548,7 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 
 	// 查看客户端是否存在
 	cliConfig.CliID.String = portUpdateClientAddress.CliID
-	err = cliConfig.GetCliConfigByCliID(GlobalDB)
+	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[update_subnet_cli_addr] 客户端不存在, err:%v", err)
@@ -1746,7 +1582,7 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 
 	// 更新数据
 	cliConfig.CliAddress.String = cliAddress
-	err = cliConfig.UpdateCliConfig(GlobalDB)
+	err = cliConfig.UpdateCliConfig(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
 		log.Printf("[update_subnet_cli_addr] 在数据库中修改客户端IP地址失败, err:%v", err)

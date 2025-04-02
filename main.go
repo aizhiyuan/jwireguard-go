@@ -32,29 +32,21 @@ func OpenVPNServer() {
 	// 启动WEB服务
 	server_port := fmt.Sprintf(":%d", global.GlobalJWireGuardini.ServerPort)
 	log.Println("[OpenVPNServer] OpenVPN API的端口:", server_port)
-	webservice.StartServer(server_port)
+	webservice.StartServer(server_port, global.GlobalJWireGuardini.SslCertFile, global.GlobalJWireGuardini.SslKeyFiel)
 }
 
 func IsDevOnline() {
 	log.Println("[IsDevOnline] start")
-	// 初始化 SQLITE数据库
-	GlobalDB, err := database.InitDB(global.GlobalJWireGuardini.DataBasePath)
-	if err != nil {
-		log.Printf("[IsDevOnline] 无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err)
-		return
-	}
-	log.Printf("[IsDevOnline] 数据库 %s 打开成功!", global.GlobalJWireGuardini.DataBasePath)
-	defer GlobalDB.Close()
 	for {
 		time.Sleep(60 * time.Second) // 等待 60 秒
 		// 查询连接状态
-		database.MonitorDatabase(GlobalDB)
+		database.MonitorDatabase(global.GlobalDB)
 		// 创建数据库连接
 		clientConfig := database.CliConfig{}
 		// 初始化数据库
-		clientConfig.CreateCliConfig(GlobalDB)
+		clientConfig.CreateCliConfig(global.GlobalDB)
 		// 遍历所有的数据
-		clientConfigs, err := clientConfig.GetAllCliConfig(GlobalDB)
+		clientConfigs, err := clientConfig.GetAllCliConfig(global.GlobalDB)
 		if err != nil {
 			continue
 		}
@@ -72,8 +64,8 @@ func IsDevOnline() {
 				if person.CliStatus.String == "true" {
 
 					// 第一步：获取 Access Token
-					if global.GlobalJWireGuardini.CorpIP != "" && global.GlobalJWireGuardini.Secret != "" {
-						accessToken, err := wechat.GetAccessToken(global.GlobalJWireGuardini.CorpIP, global.GlobalJWireGuardini.Secret)
+					if global.GlobalJWireGuardini.CorpID != "" && global.GlobalJWireGuardini.Secret != "" {
+						accessToken, err := wechat.GetAccessToken(global.GlobalJWireGuardini.CorpID, global.GlobalJWireGuardini.Secret)
 						if err != nil {
 							log.Println("[main] 获取Access Token失败:", err)
 							continue
@@ -128,22 +120,15 @@ func IsDevOnline() {
 func IsIptablesSubnet() {
 	log.Println("[IsIptablesSubnet] start")
 	// 初始化 SQLITE数据库
-	GlobalDB, err := database.InitDB(global.GlobalJWireGuardini.DataBasePath)
-	if err != nil {
-		log.Printf("[IsIptablesSubnet] 无法打开 %s 数据库, err:%v", global.GlobalJWireGuardini.DataBasePath, err)
-		return
-	}
-	log.Printf("[IsIptablesSubnet] 数据库 %s 打开成功!", global.GlobalJWireGuardini.DataBasePath)
-	defer GlobalDB.Close()
 	for {
 		// 查询连接状态
-		database.MonitorDatabase(GlobalDB)
+		database.MonitorDatabase(global.GlobalDB)
 		// 创建数据库连接
 		subnet := database.Subnet{}
 		// 初始化数据库
-		subnet.CreateSubnet(GlobalDB)
+		subnet.CreateSubnet(global.GlobalDB)
 		// 遍历所有的数据
-		subnets, err := subnet.GetAllSubnet(GlobalDB)
+		subnets, err := subnet.GetAllSubnet(global.GlobalDB)
 		if err != nil {
 			continue
 		}
@@ -225,12 +210,20 @@ func main() {
 	log.Printf("[main] 数据库 %s 打开成功!", global.GlobalJWireGuardini.DataBasePath)
 	defer global.GlobalDB.Close()
 
-	// fmt.Println("IPPrefix:", global.GlobalJWireGuardini.IPPrefix)
-	// fmt.Println("DefaultUser:", global.GlobalJWireGuardini.DefaultUser)
-	// fmt.Println("OpenVpnPath:", global.GlobalJWireGuardini.OpenVpnPath)
-	// fmt.Println("SubnetMask:", global.GlobalJWireGuardini.SubnetMask)
-	// fmt.Println("ServerPort:", global.GlobalJWireGuardini.ServerPort)
-	// fmt.Println("UDPPort:", global.GlobalJWireGuardini.UDPPort)
+	log.Printf("[main] [GENERAL SETTING] DATA_BASE_PATH %s\n", global.GlobalJWireGuardini.DataBasePath)
+	log.Printf("[main] [GENERAL SETTING] IP_PREFIX %s\n", global.GlobalJWireGuardini.IPPrefix)
+	log.Printf("[main] [GENERAL SETTING] DEFAULT_USER %s\n", global.GlobalJWireGuardini.DefaultUser)
+	log.Printf("[main] [GENERAL SETTING] SUBNET_MAKE %s\n", global.GlobalJWireGuardini.SubnetMask)
+	log.Printf("[main] [GENERAL SETTING] SERVER_PORT %d\n", global.GlobalJWireGuardini.ServerPort)
+	log.Printf("[main] [GENERAL SETTING] UDP_PORT %d\n", global.GlobalJWireGuardini.UDPPort)
+
+	log.Printf("[main] [SSL PUSH] CERT_FILE %s\n", global.GlobalJWireGuardini.SslCertFile)
+	log.Printf("[main] [SSL PUSH] KEY_FILE %s\n", global.GlobalJWireGuardini.SslKeyFiel)
+
+	log.Printf("[main] [MESSAGE PUSH] CORP_ID %s\n", global.GlobalJWireGuardini.CorpID)
+	log.Printf("[main] [MESSAGE PUSH] SECRET %s\n", global.GlobalJWireGuardini.Secret)
+	log.Printf("[main] [MESSAGE PUSH] AGENT_ID %d\n", global.GlobalJWireGuardini.AgentID)
+	log.Printf("[main] [MESSAGE PUSH] TOUSER %s\n", global.GlobalJWireGuardini.Touser)
 
 	// 初始化OpenVPN路径
 	global.GlobalOpenVPNPath.BinPath = global.GlobalJWireGuardini.OpenVpnPath + "/bin"
@@ -333,9 +326,9 @@ func main() {
 				if clientConfig.CliStatus.String != "true" {
 					// 更新在线状态
 					clientConfig.CliStatus.String = "true"
-					if global.GlobalJWireGuardini.CorpIP != "" && global.GlobalJWireGuardini.Secret != "" {
+					if global.GlobalJWireGuardini.CorpID != "" && global.GlobalJWireGuardini.Secret != "" {
 						// 第一步：获取 Access Token
-						accessToken, err := wechat.GetAccessToken(global.GlobalJWireGuardini.CorpIP, global.GlobalJWireGuardini.Secret)
+						accessToken, err := wechat.GetAccessToken(global.GlobalJWireGuardini.CorpID, global.GlobalJWireGuardini.Secret)
 						if err != nil {
 							log.Println("[main] 获取Access Token失败:", err)
 							continue

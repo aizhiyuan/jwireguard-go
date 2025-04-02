@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/sha3"
 	"gopkg.in/ini.v1"
 )
 
@@ -38,7 +39,9 @@ type JWireGuardIni struct {
 	NetworkMask  string //网络子网掩码
 	ServerPort   uint16 //服务器端口
 	UDPPort      uint16 //UDP服务器端口
-	CorpIP       string //企业微信的CorpID
+	SslCertFile  string //SSL CertFile 文件
+	SslKeyFiel   string //SSL KeyFile 文件
+	CorpID       string //企业微信的CorpID
 	Secret       string //企业微信的Secret
 	AgentID      int    //企业微信的AgentID
 	Touser       string //企业微信的Touser
@@ -116,7 +119,7 @@ func DeleteFileIfExists(filePath string) error {
 // ----------------------------------------------------------------------------------------------------------
 // uniqueStrings 去除重复值
 // ----------------------------------------------------------------------------------------------------------
-func uniqueStrings(input []string) []string {
+func UniqueStrings(input []string) []string {
 	// 使用 map[string]struct{} 来跟踪唯一的字符串
 	uniqueMap := make(map[string]struct{})
 	var result []string
@@ -157,12 +160,12 @@ func GenerateSHA256Hash(data string) string {
 // ----------------------------------------------------------------------------------------------------------
 // GenerateSHA3Hash 生成SHA-3-256哈希值
 // ----------------------------------------------------------------------------------------------------------
-// func GenerateSHA3Hash(data string) string {
-// 	h := sha3.New256()
-// 	h.Write([]byte(data))
-// 	hash := h.Sum(nil)
-// 	return hex.EncodeToString(hash)
-// }
+func GenerateSHA3Hash(data string) string {
+	h := sha3.New256()
+	h.Write([]byte(data))
+	hash := h.Sum(nil)
+	return hex.EncodeToString(hash)
+}
 
 // ----------------------------------------------------------------------------------------------------------
 // 读取或创建 INI 文件并加载配置
@@ -186,6 +189,8 @@ func LoadOrCreateJWireGuardIni(filePath string) (*JWireGuardIni, error) {
 		cfg.Section("GENERAL SETTING").Key("NETWORK_MASK").SetValue("255.255.255.0")
 		cfg.Section("GENERAL SETTING").Key("SERVER_PORT").SetValue("1092")
 		cfg.Section("GENERAL SETTING").Key("UDP_PORT").SetValue("1092")
+		cfg.Section("SSL SETTING").Key("CERT_FILE").SetValue("")
+		cfg.Section("SSL SETTING").Key("KEY_FILE").SetValue("")
 		cfg.Section("MESSAGE PUSH").Key("CORP_ID").SetValue("")
 		cfg.Section("MESSAGE PUSH").Key("SECRET").SetValue("")
 		cfg.Section("MESSAGE PUSH").Key("AGENT_ID").SetValue("1000002")
@@ -214,7 +219,9 @@ func LoadOrCreateJWireGuardIni(filePath string) (*JWireGuardIni, error) {
 		NetworkMask:  cfg.Section("GENERAL SETTING").Key("NETWORK_MASK").String(),
 		ServerPort:   uint16(cfg.Section("GENERAL SETTING").Key("SERVER_PORT").MustUint(1092)),
 		UDPPort:      uint16(cfg.Section("GENERAL SETTING").Key("UDP_PORT").MustUint(1092)),
-		CorpIP:       cfg.Section("MESSAGE PUSH").Key("CORP_ID").String(),
+		SslCertFile:  cfg.Section("SSL SETTING").Key("CERT_FILE").String(),
+		SslKeyFiel:   cfg.Section("SSL SETTING").Key("KEY_FILE").String(),
+		CorpID:       cfg.Section("MESSAGE PUSH").Key("CORP_ID").String(),
 		Secret:       cfg.Section("MESSAGE PUSH").Key("SECRET").String(),
 		AgentID:      cfg.Section("MESSAGE PUSH").Key("AGENT_ID").MustInt(1000002),
 		Touser:       cfg.Section("MESSAGE PUSH").Key("TOUSER").String(),

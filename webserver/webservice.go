@@ -24,7 +24,7 @@ type ResponseSuccess struct {
 	Message string `json:"message"`
 }
 
-func StartServer(port string) {
+func StartServer(port string, certfile string, keyfile string) {
 	http.HandleFunc("/", homeHandler)
 
 	// Register CLI-related routes
@@ -36,7 +36,11 @@ func StartServer(port string) {
 	// Register subnet-related routes
 	registerSubnetRoutes()
 
-	http.ListenAndServe(port, nil)
+	if (certfile != "") && (keyfile != "") {
+		http.ListenAndServeTLS(port, certfile, keyfile, nil)
+	} else {
+		http.ListenAndServe(port, nil)
+	}
 }
 
 func homeHandler(w http.ResponseWriter, r *http.Request) {
