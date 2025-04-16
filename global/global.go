@@ -30,21 +30,24 @@ import (
 
 // JWireGuardIni 结构体用于封装 INI 文件的数据
 type JWireGuardIni struct {
-	DataBasePath string
-	IPPrefix     string // IP前缀
-	DefaultUser  string // 默认用户
-	OpenVpnPath  string // OpenVpn 路径
-	OpenSslFile  string // OpenSSL 程序路径
-	SubnetMask   string //子网掩码
-	NetworkMask  string //网络子网掩码
-	ServerPort   uint16 //服务器端口
-	UDPPort      uint16 //UDP服务器端口
-	SslCertFile  string //SSL CertFile 文件
-	SslKeyFiel   string //SSL KeyFile 文件
-	CorpID       string //企业微信的CorpID
-	Secret       string //企业微信的Secret
-	AgentID      int    //企业微信的AgentID
-	Touser       string //企业微信的Touser
+	DataBasePath  string
+	IPPrefix      string // IP前缀
+	DefaultUser   string // 默认用户
+	OpenVpnPath   string // OpenVpn 路径
+	OpenSslFile   string // OpenSSL 程序路径
+	SubnetMask    string //子网掩码
+	NetworkMask   string //网络子网掩码
+	ServerPortTls uint16 //服务器端口
+	ServerPort    uint16 //服务器端口
+	SslCertFile   string //SSL CertFile 文件
+	SslKeyFiel    string //SSL KeyFile 文件
+	EmailHost     string //邮箱服务器
+	EmailPort     int    //邮箱服务器端口
+	EmailUser     string //邮箱发送用户名
+	EmailPass     string // 邮箱发送密码
+	FormEmail     string // 发送邮箱地址
+	FormName      string // 发送邮箱名称
+	To            string // 收件人地址
 }
 
 type OpenVPNPath struct {
@@ -191,10 +194,13 @@ func LoadOrCreateJWireGuardIni(filePath string) (*JWireGuardIni, error) {
 		cfg.Section("GENERAL SETTING").Key("UDP_PORT").SetValue("1092")
 		cfg.Section("SSL SETTING").Key("CERT_FILE").SetValue("")
 		cfg.Section("SSL SETTING").Key("KEY_FILE").SetValue("")
-		cfg.Section("MESSAGE PUSH").Key("CORP_ID").SetValue("")
-		cfg.Section("MESSAGE PUSH").Key("SECRET").SetValue("")
-		cfg.Section("MESSAGE PUSH").Key("AGENT_ID").SetValue("1000002")
-		cfg.Section("MESSAGE PUSH").Key("TOUSER").SetValue("@all")
+		cfg.Section("EMAIL SETTING").Key("HOST").String()
+		cfg.Section("EMAIL SETTING").Key("PORT").MustInt(465)
+		cfg.Section("EMAIL SETTING").Key("USERNAME").String()
+		cfg.Section("EMAIL SETTING").Key("PASSWORD").String()
+		cfg.Section("EMAIL SETTING").Key("FROMEMAIL").String()
+		cfg.Section("EMAIL SETTING").Key("FROMNAME").String()
+		cfg.Section("EMAIL SETTING").Key("TO").String()
 
 		// 保存到文件
 		if err = cfg.SaveTo(filePath); err != nil {
@@ -210,21 +216,24 @@ func LoadOrCreateJWireGuardIni(filePath string) (*JWireGuardIni, error) {
 
 	// 加载配置到结构体
 	jwg := &JWireGuardIni{
-		DataBasePath: cfg.Section("GENERAL SETTING").Key("DATA_BASE_PATH").String(),
-		IPPrefix:     cfg.Section("GENERAL SETTING").Key("IP_PREFIX").String(),
-		DefaultUser:  cfg.Section("GENERAL SETTING").Key("DEFAULT_USER").String(),
-		OpenVpnPath:  cfg.Section("GENERAL SETTING").Key("OPENVPN_PATH").String(),
-		OpenSslFile:  cfg.Section("GENERAL SETTING").Key("OPENSSL_FILE").String(),
-		SubnetMask:   cfg.Section("GENERAL SETTING").Key("SUBNET_MAKE").String(),
-		NetworkMask:  cfg.Section("GENERAL SETTING").Key("NETWORK_MASK").String(),
-		ServerPort:   uint16(cfg.Section("GENERAL SETTING").Key("SERVER_PORT").MustUint(1092)),
-		UDPPort:      uint16(cfg.Section("GENERAL SETTING").Key("UDP_PORT").MustUint(1092)),
-		SslCertFile:  cfg.Section("SSL SETTING").Key("CERT_FILE").String(),
-		SslKeyFiel:   cfg.Section("SSL SETTING").Key("KEY_FILE").String(),
-		CorpID:       cfg.Section("MESSAGE PUSH").Key("CORP_ID").String(),
-		Secret:       cfg.Section("MESSAGE PUSH").Key("SECRET").String(),
-		AgentID:      cfg.Section("MESSAGE PUSH").Key("AGENT_ID").MustInt(1000002),
-		Touser:       cfg.Section("MESSAGE PUSH").Key("TOUSER").String(),
+		DataBasePath:  cfg.Section("GENERAL SETTING").Key("DATA_BASE_PATH").String(),
+		IPPrefix:      cfg.Section("GENERAL SETTING").Key("IP_PREFIX").String(),
+		DefaultUser:   cfg.Section("GENERAL SETTING").Key("DEFAULT_USER").String(),
+		OpenVpnPath:   cfg.Section("GENERAL SETTING").Key("OPENVPN_PATH").String(),
+		OpenSslFile:   cfg.Section("GENERAL SETTING").Key("OPENSSL_FILE").String(),
+		SubnetMask:    cfg.Section("GENERAL SETTING").Key("SUBNET_MAKE").String(),
+		NetworkMask:   cfg.Section("GENERAL SETTING").Key("NETWORK_MASK").String(),
+		ServerPortTls: uint16(cfg.Section("GENERAL SETTING").Key("SERVER_PORT_TILS").MustUint(1093)),
+		ServerPort:    uint16(cfg.Section("GENERAL SETTING").Key("SERVER_PORT").MustUint(1092)),
+		SslCertFile:   cfg.Section("SSL SETTING").Key("CERT_FILE").String(),
+		SslKeyFiel:    cfg.Section("SSL SETTING").Key("KEY_FILE").String(),
+		EmailHost:     cfg.Section("EMAIL SETTING").Key("HOST").String(),
+		EmailPort:     cfg.Section("EMAIL SETTING").Key("PORT").MustInt(465),
+		EmailUser:     cfg.Section("EMAIL SETTING").Key("USERNAME").String(),
+		EmailPass:     cfg.Section("EMAIL SETTING").Key("PASSWORD").String(),
+		FormEmail:     cfg.Section("EMAIL SETTING").Key("FROMEMAIL").String(),
+		FormName:      cfg.Section("EMAIL SETTING").Key("FROMNAME").String(),
+		To:            cfg.Section("EMAIL SETTING").Key("TO").String(),
 	}
 
 	return jwg, nil
@@ -913,4 +922,8 @@ func HandleConnection(conn net.Conn) {
 			break
 		}
 	}
+}
+
+func IsAdmin(userID string) bool {
+	return userID == "21232f297a57a5a743894a0e4a801fc3"
 }

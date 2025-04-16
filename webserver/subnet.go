@@ -12,12 +12,14 @@ import (
 )
 
 func registerSubnetRoutes() {
-	http.HandleFunc("/add_subnet", AddSubnet)
-	http.HandleFunc("/edit_subnet", EditSubnet)
-	http.HandleFunc("/del_subnet", DelSubnet)
+	http.HandleFunc("/add_subnet", ValidateSessionMiddleware(AddSubnet))
+	http.HandleFunc("/edit_subnet", ValidateSessionMiddleware(EditSubnet))
+	http.HandleFunc("/del_subnet", ValidateSessionMiddleware(DelSubnet))
 }
 
 func AddSubnet(w http.ResponseWriter, r *http.Request) {
+	XUserID := r.Header.Get("X-User-ID")
+	log.Println("[add_subnet] userID:", XUserID)
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -33,7 +35,7 @@ func AddSubnet(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
-			Error:   1,
+			Error:   2201,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -50,7 +52,7 @@ func AddSubnet(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
-			Error:   2,
+			Error:   2202,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -69,7 +71,7 @@ func AddSubnet(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求参数为空",
-			Error:   3,
+			Error:   2203,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -95,7 +97,7 @@ func AddSubnet(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("子网已存在, err:%v", err),
-			Error:   4,
+			Error:   2204,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -110,7 +112,7 @@ func AddSubnet(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("添加子网失败, err:%v", err),
-			Error:   5,
+			Error:   2205,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -130,7 +132,7 @@ func AddSubnet(w http.ResponseWriter, r *http.Request) {
 			responseError := ResponseError{
 				Status:  false,
 				Message: fmt.Sprintf("路由配置错误 '%s': %v", rules, err),
-				Error:   6,
+				Error:   2206,
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(responseError)
@@ -148,6 +150,9 @@ func AddSubnet(w http.ResponseWriter, r *http.Request) {
 }
 
 func EditSubnet(w http.ResponseWriter, r *http.Request) {
+	XUserID := r.Header.Get("X-User-ID")
+	log.Println("[edit_subnet] userID:", XUserID)
+
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -163,7 +168,7 @@ func EditSubnet(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
-			Error:   1,
+			Error:   2301,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -180,7 +185,7 @@ func EditSubnet(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
-			Error:   2,
+			Error:   2302,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -197,7 +202,7 @@ func EditSubnet(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求参数为空",
-			Error:   3,
+			Error:   2303,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -220,7 +225,7 @@ func EditSubnet(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("子网不存在, err:%v", err),
-			Error:   4,
+			Error:   2304,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -235,7 +240,7 @@ func EditSubnet(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("子网更新失败, err:%v", err),
-			Error:   5,
+			Error:   2305,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -258,7 +263,7 @@ func EditSubnet(w http.ResponseWriter, r *http.Request) {
 				responseError := ResponseError{
 					Status:  false,
 					Message: fmt.Sprintf("路由删除错误 '%s': %v", delRules, err),
-					Error:   6,
+					Error:   2306,
 				}
 				w.Header().Set("Content-Type", "application/json")
 				json.NewEncoder(w).Encode(responseError)
@@ -279,7 +284,7 @@ func EditSubnet(w http.ResponseWriter, r *http.Request) {
 				responseError := ResponseError{
 					Status:  false,
 					Message: fmt.Sprintf("路由配置错误 '%s': %v", addRules, err),
-					Error:   7,
+					Error:   2307,
 				}
 				w.Header().Set("Content-Type", "application/json")
 				json.NewEncoder(w).Encode(responseError)
@@ -298,6 +303,9 @@ func EditSubnet(w http.ResponseWriter, r *http.Request) {
 }
 
 func DelSubnet(w http.ResponseWriter, r *http.Request) {
+	XUserID := r.Header.Get("X-User-ID")
+	log.Println("[del_subnet] userID:", XUserID)
+
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -316,7 +324,7 @@ func DelSubnet(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "参数为空",
-			Error:   1,
+			Error:   2401,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -340,7 +348,7 @@ func DelSubnet(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("子网不存在, err:%v", err),
-			Error:   2,
+			Error:   2402,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -355,7 +363,7 @@ func DelSubnet(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("子网删除失败, err:%v", err),
-			Error:   3,
+			Error:   2403,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -374,7 +382,7 @@ func DelSubnet(w http.ResponseWriter, r *http.Request) {
 			responseError := ResponseError{
 				Status:  false,
 				Message: fmt.Sprintf("路由删除错误 '%s': %v", rules, err),
-				Error:   4,
+				Error:   2404,
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(responseError)

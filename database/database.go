@@ -4,8 +4,10 @@ import (
 	"database/sql"
 	"jwireguard/global"
 	"log"
+	"time"
 
 	_ "github.com/glebarez/sqlite"
+	// _ "github.com/go-sql-driver/mysql" // 导入 MySQL 驱动
 )
 
 // ----------------------------------------------------------------------------------------------------------
@@ -54,6 +56,13 @@ func nullInt64ToInt64(ns sql.NullInt64) int64 {
 	return 0
 }
 
+func nullTimeToTime(ns sql.NullTime) time.Time {
+	if ns.Valid {
+		return ns.Time
+	}
+	return time.Time{}
+}
+
 func nullInt32ToInt32(ns sql.NullInt32) int32 {
 	if ns.Valid {
 		return ns.Int32
@@ -61,7 +70,7 @@ func nullInt32ToInt32(ns sql.NullInt32) int32 {
 	return 0
 }
 
-func nullBoolToBool(ns sql.NullBool) bool {
+func NullBoolToBool(ns sql.NullBool) bool {
 	if ns.Valid {
 		return ns.Bool
 	}

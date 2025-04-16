@@ -9,25 +9,31 @@ import (
 )
 
 type User struct {
-	UserID     sql.NullString `json:"user_id"`
-	SerID      sql.NullString `json:"ser_id"`
-	ParentID   sql.NullString `json:"parent_id"`
-	UserName   sql.NullString `json:"user_name"`
-	UserPasswd sql.NullString `json:"user_passwd"`
-	UserType   sql.NullInt64  `json:"user_type"`
-	UserStatus sql.NullString `json:"user_status"`
-	UserEmail  sql.NullString `json:"user_email"`
+	UserID        sql.NullString `json:"user_id"`
+	SerID         sql.NullString `json:"ser_id"`
+	ParentID      sql.NullString `json:"parent_id"`
+	UserName      sql.NullString `json:"user_name"`
+	UserPasswd    sql.NullString `json:"user_passwd"`
+	UserType      sql.NullInt64  `json:"user_type"`
+	UserStatus    sql.NullString `json:"user_status"`
+	UserEmail     sql.NullString `json:"user_email"`
+	SessionID     sql.NullString `json:"session_id"`
+	ExpirySeconds sql.NullInt64  `json:"expiry_seconds"`
+	ExpiresAt     sql.NullInt64  `json:"expires_at"`
 }
 
 type ExportedUser struct {
-	UserID     string `json:"user_id"`
-	SerID      string `json:"ser_id"`
-	ParentID   string `json:"parent_id"`
-	UserName   string `json:"user_name"`
-	UserPasswd string `json:"user_passwd"`
-	UserType   int64  `json:"user_type"`
-	UserStatus string `json:"user_status"`
-	UserEmail  string `json:"user_email"`
+	UserID        string `json:"user_id"`
+	SerID         string `json:"ser_id"`
+	ParentID      string `json:"parent_id"`
+	UserName      string `json:"user_name"`
+	UserPasswd    string `json:"user_passwd"`
+	UserType      int64  `json:"user_type"`
+	UserStatus    string `json:"user_status"`
+	UserEmail     string `json:"user_email"`
+	SessionID     string `json:"session_id"`
+	ExpirySeconds int64  `json:"expiry_seconds"`
+	ExpiresAt     int64  `json:"expires_at"`
 }
 
 // ----------------------------------------------------------------------------------------------------------
@@ -43,7 +49,12 @@ func (u *User) CreateUser(db *sql.DB) {
 			"user_passwd" TEXT,
 			"user_type" INTEGER,
 			"user_status" TEXT,
-			"user_email" TEXT
+			"user_email" TEXT,
+			"session_id" TEXT,
+			"expiry_seconds" INTEGER,
+			"expires_at" INTEGER
+		}
+	}
         );`
 		_, err := db.Exec(createTableSQL)
 		if err != nil {
@@ -59,28 +70,34 @@ func (u *User) CreateUser(db *sql.DB) {
 // ToExported 负责将 CliConfig 转换为 ExportedCliConfig
 func (u *User) ToExported() ExportedUser {
 	return ExportedUser{
-		UserID:     nullStringToString(u.UserID),
-		SerID:      nullStringToString(u.SerID),
-		ParentID:   nullStringToString(u.ParentID),
-		UserName:   nullStringToString(u.UserName),
-		UserPasswd: nullStringToString(u.UserPasswd),
-		UserType:   nullInt64ToInt64(u.UserType),
-		UserStatus: nullStringToString(u.UserStatus),
-		UserEmail:  nullStringToString(u.UserEmail),
+		UserID:        nullStringToString(u.UserID),
+		SerID:         nullStringToString(u.SerID),
+		ParentID:      nullStringToString(u.ParentID),
+		UserName:      nullStringToString(u.UserName),
+		UserPasswd:    nullStringToString(u.UserPasswd),
+		UserType:      nullInt64ToInt64(u.UserType),
+		UserStatus:    nullStringToString(u.UserStatus),
+		UserEmail:     nullStringToString(u.UserEmail),
+		SessionID:     nullStringToString(u.SessionID),
+		ExpirySeconds: nullInt64ToInt64(u.ExpirySeconds),
+		ExpiresAt:     nullInt64ToInt64(u.ExpiresAt),
 	}
 }
 
 // 将 ExportedCliConfig 转换为 CliConfig
 func (exported *ExportedUser) ConvertToUser() User {
 	return User{
-		UserID:     sql.NullString{String: exported.UserID, Valid: exported.UserID != ""},
-		SerID:      sql.NullString{String: exported.SerID, Valid: exported.SerID != ""},
-		ParentID:   sql.NullString{String: exported.ParentID, Valid: exported.ParentID != ""},
-		UserName:   sql.NullString{String: exported.UserName, Valid: exported.UserName != ""},
-		UserPasswd: sql.NullString{String: exported.UserPasswd, Valid: exported.UserPasswd != ""},
-		UserType:   sql.NullInt64{Int64: exported.UserType, Valid: exported.UserType != 0},
-		UserStatus: sql.NullString{String: exported.UserStatus, Valid: exported.UserStatus != ""},
-		UserEmail:  sql.NullString{String: exported.UserEmail, Valid: exported.UserEmail != ""},
+		UserID:        sql.NullString{String: exported.UserID, Valid: exported.UserID != ""},
+		SerID:         sql.NullString{String: exported.SerID, Valid: exported.SerID != ""},
+		ParentID:      sql.NullString{String: exported.ParentID, Valid: exported.ParentID != ""},
+		UserName:      sql.NullString{String: exported.UserName, Valid: exported.UserName != ""},
+		UserPasswd:    sql.NullString{String: exported.UserPasswd, Valid: exported.UserPasswd != ""},
+		UserType:      sql.NullInt64{Int64: exported.UserType, Valid: exported.UserType != 0},
+		UserStatus:    sql.NullString{String: exported.UserStatus, Valid: exported.UserStatus != ""},
+		UserEmail:     sql.NullString{String: exported.UserEmail, Valid: exported.UserEmail != ""},
+		SessionID:     sql.NullString{String: exported.SessionID, Valid: exported.SessionID != ""},
+		ExpirySeconds: sql.NullInt64{Int64: exported.ExpirySeconds, Valid: exported.ExpirySeconds != 0},
+		ExpiresAt:     sql.NullInt64{Int64: exported.ExpiresAt, Valid: exported.ExpiresAt != 0},
 	}
 }
 
@@ -88,13 +105,23 @@ func (exported *ExportedUser) ConvertToUser() User {
 // 添加用户表
 // ----------------------------------------------------------------------------------------------------------
 func (u *User) InsertUser(db *sql.DB) error {
-	stmt, err := db.Prepare("INSERT INTO user (user_id, ser_id, parent_id, user_name, user_passwd, user_type, user_status, user_email) VALUES(?, ?, ?, ?, ?, ?, ?, ?)")
+	stmt, err := db.Prepare("INSERT INTO user (user_id, ser_id, parent_id, user_name, user_passwd, user_type, user_status, user_email,session_id, expiry_seconds, expires_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?,?,?,?)")
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
 
-	_, err = stmt.Exec(u.UserID.String, u.SerID.String, u.ParentID.String, u.UserName.String, u.UserPasswd.String, u.UserType.Int64, u.UserStatus.String, u.UserEmail.String)
+	_, err = stmt.Exec(u.UserID.String,
+		u.SerID.String, u.ParentID.String,
+		u.UserName.String,
+		u.UserPasswd.String,
+		u.UserType.Int64,
+		u.UserStatus.String,
+		u.UserEmail.String,
+		u.SessionID.String,
+		u.ExpirySeconds.Int64,
+		u.ExpiresAt.Int64,
+	)
 	if err != nil {
 		return err
 	}
@@ -106,10 +133,19 @@ func (u *User) InsertUser(db *sql.DB) error {
 // 通过 UserID 查询用户信息
 // ----------------------------------------------------------------------------------------------------------
 func (u *User) GetUserByID(db *sql.DB) error {
-	query := "SELECT user_id, ser_id, parent_id, user_name, user_passwd, user_type, user_status, user_email FROM user WHERE user_id = ?"
+	query := "SELECT user_id, ser_id, parent_id, user_name, user_passwd, user_type, user_status, user_email,session_id,expiry_seconds, expires_at FROM user WHERE user_id = ?"
 	row := db.QueryRow(query, u.UserID.String)
 
-	err := row.Scan(&u.UserID, &u.SerID, &u.ParentID, &u.UserName, &u.UserPasswd, &u.UserType, &u.UserStatus, &u.UserEmail)
+	err := row.Scan(&u.UserID,
+		&u.SerID, &u.ParentID,
+		&u.UserName,
+		&u.UserPasswd,
+		&u.UserType,
+		&u.UserStatus,
+		&u.UserEmail,
+		&u.SessionID,
+		&u.ExpirySeconds,
+		&u.ExpiresAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return fmt.Errorf("User with UserID %s not found", u.UserID.String)
@@ -124,13 +160,51 @@ func (u *User) GetUserByID(db *sql.DB) error {
 // 通过 UserName 查询用户信息
 // ----------------------------------------------------------------------------------------------------------
 func (u *User) GetUserByName(db *sql.DB) error {
-	query := "SELECT user_id, ser_id, parent_id, user_name, user_passwd, user_type, user_status, user_email FROM user WHERE user_name = ?"
+	query := "SELECT user_id, ser_id, parent_id, user_name, user_passwd, user_type, user_status, user_email, session_id, expiry_seconds, expires_at FROM user WHERE user_name = ?"
 	row := db.QueryRow(query, u.UserName.String)
 
-	err := row.Scan(&u.UserID, &u.SerID, &u.ParentID, &u.UserName, &u.UserPasswd, &u.UserType, &u.UserStatus, &u.UserEmail)
+	err := row.Scan(&u.UserID,
+		&u.SerID,
+		&u.ParentID,
+		&u.UserName,
+		&u.UserPasswd,
+		&u.UserType,
+		&u.UserStatus,
+		&u.UserEmail,
+		&u.SessionID,
+		&u.ExpirySeconds,
+		&u.ExpiresAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return fmt.Errorf("User with UserName %s not found", u.UserName.String)
+		}
+		return err
+	}
+
+	return nil
+}
+
+// ----------------------------------------------------------------------------------------------------------
+// 通过 SessionID 查询用户信息
+// ----------------------------------------------------------------------------------------------------------
+func (u *User) GetUserBySessionID(db *sql.DB) error {
+	query := "SELECT user_id, ser_id, parent_id, user_name, user_passwd, user_type, user_status, user_email, session_id,expiry_seconds,expires_at FROM user WHERE session_id = ?"
+	row := db.QueryRow(query, u.SessionID.String)
+
+	err := row.Scan(&u.UserID,
+		&u.SerID,
+		&u.ParentID,
+		&u.UserName,
+		&u.UserPasswd,
+		&u.UserType,
+		&u.UserStatus,
+		&u.UserEmail,
+		&u.SessionID,
+		&u.ExpirySeconds,
+		&u.ExpiresAt)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("User with SessionID %s not found", u.SessionID.String)
 		}
 		return err
 	}
@@ -201,7 +275,7 @@ func (u *User) GetSubnetIdsByUserIds(db *sql.DB, userIds []string) ([]string, er
 // 获取 User 表中的所有数据
 // ----------------------------------------------------------------------------------------------------------
 func (u *User) GetAllUsers(db *sql.DB) ([]User, error) {
-	query := "SELECT user_id, ser_id, parent_id, user_name, user_passwd, user_type, user_status, user_email FROM user"
+	query := "SELECT user_id, ser_id, parent_id, user_name, user_passwd, user_type, user_status, user_email,session_id,expiry_seconds,expires_at FROM user"
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
@@ -211,7 +285,17 @@ func (u *User) GetAllUsers(db *sql.DB) ([]User, error) {
 	var users []User
 	for rows.Next() {
 		var user User
-		err := rows.Scan(&user.UserID, &u.SerID, &user.ParentID, &user.UserName, &user.UserPasswd, &user.UserType, &user.UserStatus, &u.UserEmail)
+		err := rows.Scan(&user.UserID,
+			&u.SerID,
+			&user.ParentID,
+			&user.UserName,
+			&user.UserPasswd,
+			&user.UserType,
+			&user.UserStatus,
+			&u.UserEmail,
+			&u.SessionID,
+			&u.ExpirySeconds,
+			&u.ExpiresAt)
 		if err != nil {
 			return nil, err
 		}
@@ -266,6 +350,20 @@ func (u *User) UpdateUsers(db *sql.DB) error {
 	if u.UserEmail.String != "" {
 		setClauses = append(setClauses, "user_email = ?")
 		args = append(args, u.UserEmail.String)
+	}
+	if u.SessionID.String != "" {
+		setClauses = append(setClauses, "session_id = ?")
+		args = append(args, u.SessionID.String)
+	}
+
+	if u.ExpirySeconds.Int64 != 0 {
+		setClauses = append(setClauses, "expiry_seconds = ?")
+		args = append(args, u.ExpirySeconds.Int64)
+	}
+
+	if u.ExpiresAt.Int64 != 0 {
+		setClauses = append(setClauses, "expires_at = ?")
+		args = append(args, u.ExpiresAt.Int64)
 	}
 
 	// 如果没有任何字段需要更新

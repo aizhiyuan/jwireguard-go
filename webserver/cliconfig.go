@@ -77,21 +77,22 @@ type ResponseAddrSuccess struct {
 }
 
 func registerCliRoutes() {
-	http.HandleFunc("/get_sub_network_list", GetSubNetworkList)
-	http.HandleFunc("/get_cli_config", GetCliConfig)
-	http.HandleFunc("/get_cli_list", GetCliList)
-	http.HandleFunc("/get_cli_info", GetCliInfo)
-	http.HandleFunc("/add_cli_config", AddCLiConfig)
-	http.HandleFunc("/del_cli_config", DelCliConfig)
-	http.HandleFunc("/update_cli_config", UpdateCliConfig)
-	http.HandleFunc("/update_cli_info", UpdateCliInfo)
-	http.HandleFunc("/update_cli_addr", UpdateCliAddr)
-	http.HandleFunc("/update_cli_map", UpdateCliMap)
-	http.HandleFunc("/update_subnet_cli_addr", UpdataSubnetCliAddr)
+	http.HandleFunc("/get_sub_network_list", ValidateSessionMiddleware(GetSubNetworkList))
+	http.HandleFunc("/get_cli_config", ValidateSessionMiddleware(GetCliConfig))
+	http.HandleFunc("/get_cli_list", ValidateSessionMiddleware(GetCliList))
+	http.HandleFunc("/get_cli_info", ValidateSessionMiddleware(GetCliInfo))
+	http.HandleFunc("/add_cli_config", ValidateSessionMiddleware(AddCLiConfig))
+	http.HandleFunc("/del_cli_config", ValidateSessionMiddleware(DelCliConfig))
+	http.HandleFunc("/update_cli_config", ValidateSessionMiddleware(UpdateCliConfig))
+	http.HandleFunc("/update_cli_info", ValidateSessionMiddleware(UpdateCliInfo))
+	http.HandleFunc("/update_cli_addr", ValidateSessionMiddleware(UpdateCliAddr))
+	http.HandleFunc("/update_cli_map", ValidateSessionMiddleware(UpdateCliMap))
+	http.HandleFunc("/update_subnet_cli_addr", ValidateSessionMiddleware(UpdataSubnetCliAddr))
 }
 
 func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
-
+	XUserID := r.Header.Get("X-User-ID")
+	log.Println("[get_sub_network_list] userID:", XUserID)
 	// 获取客户端的 IP 和端口
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
@@ -111,7 +112,7 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "参数为空",
-			Error:   1,
+			Error:   1101,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -136,7 +137,7 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法获取用户, err:%v", err),
-			Error:   2,
+			Error:   1102,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -149,7 +150,7 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "用户列表为空",
-			Error:   3,
+			Error:   1103,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -164,7 +165,7 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法获取子网序号组, err:%v", err),
-			Error:   4,
+			Error:   1104,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -177,7 +178,7 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "子网列表为空",
-			Error:   5,
+			Error:   1105,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -192,7 +193,7 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法获取子网列表, err:%v", err),
-			Error:   6,
+			Error:   1105,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -205,7 +206,7 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "子网列表为空",
-			Error:   7,
+			Error:   1106,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -229,7 +230,7 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法将JSON对象转为字符串, err:%v", err),
-			Error:   6,
+			Error:   1107,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -243,6 +244,9 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetCliConfig(w http.ResponseWriter, r *http.Request) {
+	XUserID := r.Header.Get("X-User-ID")
+	log.Println("[get_cli_config] userID:", XUserID)
+
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -262,7 +266,7 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "参数为空",
-			Error:   1,
+			Error:   1201,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -285,7 +289,7 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端不存在, err:%v", err),
-			Error:   2,
+			Error:   1202,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -313,7 +317,7 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 			responseError := ResponseError{
 				Status:  false,
 				Message: fmt.Sprintf("该%s文件不存在", file),
-				Error:   3,
+				Error:   1203,
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(responseError)
@@ -328,7 +332,7 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法合成%s.ovpn, err:%v", cliId, err),
-			Error:   4,
+			Error:   1204,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -341,7 +345,7 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "客户端配置不存在",
-			Error:   5,
+			Error:   1205,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -354,7 +358,7 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端配置读取失败, err:%v", err),
-			Error:   6,
+			Error:   1206,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -381,7 +385,7 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法将JSON对象转为字符串, err:%v", err),
-			Error:   7,
+			Error:   1207,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -394,6 +398,9 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetCliList(w http.ResponseWriter, r *http.Request) {
+	XUserID := r.Header.Get("X-User-ID")
+	log.Println("[get_cli_list] userID:", XUserID)
+
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -412,7 +419,7 @@ func GetCliList(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "参数为空",
-			Error:   1,
+			Error:   1301,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -434,7 +441,7 @@ func GetCliList(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("获取客户端列表失败, err:%v", err),
-			Error:   2,
+			Error:   1302,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -448,7 +455,7 @@ func GetCliList(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "客户端列表为空",
-			Error:   3,
+			Error:   1303,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -469,7 +476,7 @@ func GetCliList(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法将JSON对象转为字符串, err:%v", err),
-			Error:   4,
+			Error:   1304,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -482,6 +489,9 @@ func GetCliList(w http.ResponseWriter, r *http.Request) {
 }
 
 func GetCliInfo(w http.ResponseWriter, r *http.Request) {
+	XUserID := r.Header.Get("X-User-ID")
+	log.Println("[get_cli_info] userID:", XUserID)
+
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -500,7 +510,7 @@ func GetCliInfo(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "参数为空",
-			Error:   1,
+			Error:   1401,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -523,7 +533,7 @@ func GetCliInfo(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("获取客户端信息失败!, err:%v", err),
-			Error:   2,
+			Error:   1402,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -548,7 +558,7 @@ func GetCliInfo(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("在文件中修改客户端IP地址失败, err:%v", err),
-			Error:   3,
+			Error:   1403,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -569,7 +579,7 @@ func GetCliInfo(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法将JSON对象转为字符串, err:%v", err),
-			Error:   4,
+			Error:   1404,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -582,6 +592,9 @@ func GetCliInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
+	XUserID := r.Header.Get("X-User-ID")
+	log.Println("[add_cli_config] userID:", XUserID)
+
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -596,7 +609,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
-			Error:   1,
+			Error:   1501,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -613,7 +626,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
-			Error:   2,
+			Error:   1502,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -631,7 +644,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求参数为空",
-			Error:   3,
+			Error:   1503,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -649,7 +662,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "KEY值校验错误",
-			Error:   4,
+			Error:   1504,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -675,7 +688,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端已存在!, err:%v", err),
-			Error:   5,
+			Error:   1505,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -693,7 +706,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 			responseError := ResponseError{
 				Status:  false,
 				Message: fmt.Sprintf("子网网段已满, err:%v", err),
-				Error:   6,
+				Error:   1506,
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(responseError)
@@ -708,7 +721,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 			responseError := ResponseError{
 				Status:  false,
 				Message: fmt.Sprintf("子网添加失败, err:%v", err),
-				Error:   7,
+				Error:   1507,
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(responseError)
@@ -725,7 +738,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端已存在, err:%v", err),
-			Error:   8,
+			Error:   1508,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -740,7 +753,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法获取到当前可用的客户端IP, err:%v", err),
-			Error:   9,
+			Error:   1509,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -756,7 +769,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法添加客户端, err:%v", err),
-			Error:   10,
+			Error:   1510,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -779,7 +792,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("数据库创建客户端失败, err:%v", err),
-			Error:   17,
+			Error:   1511,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -795,6 +808,21 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
+	XUserID := r.Header.Get("X-User-ID")
+	log.Println("[update_cli_config] userID:", XUserID)
+
+	currentUserID := r.Context().Value("userID").(string)
+	if !global.IsAdmin(currentUserID) { // 需要实现权限验证逻辑
+		responseError := ResponseError{
+			Status:  false,
+			Message: "权限不足",
+			Error:   1600,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(responseError)
+		return
+	}
+
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -810,7 +838,7 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
-			Error:   1,
+			Error:   1601,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -827,7 +855,7 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
-			Error:   2,
+			Error:   1602,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -845,7 +873,7 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求参数为空",
-			Error:   3,
+			Error:   1603,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -868,7 +896,7 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端不存在, err:%v", err),
-			Error:   4,
+			Error:   1604,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -885,7 +913,7 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "KEY值校验错误",
-			Error:   5,
+			Error:   1605,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -898,7 +926,7 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端更新失败, err:%v", err),
-			Error:   6,
+			Error:   1606,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -913,6 +941,10 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func DelCliConfig(w http.ResponseWriter, r *http.Request) {
+
+	XUserID := r.Header.Get("X-User-ID")
+	log.Println("[del_cli_config] userID:", XUserID)
+
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -931,7 +963,7 @@ func DelCliConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求参数为空",
-			Error:   1,
+			Error:   1701,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -957,7 +989,7 @@ func DelCliConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端不存在, err:%v", err),
-			Error:   2,
+			Error:   1702,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -972,7 +1004,7 @@ func DelCliConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("删除客户端失败, err:%v", err),
-			Error:   3,
+			Error:   1703,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -986,7 +1018,7 @@ func DelCliConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端删除失败, err:%v", err),
-			Error:   4,
+			Error:   1704,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1000,7 +1032,7 @@ func DelCliConfig(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法删除客户端, err:%v", err),
-			Error:   5,
+			Error:   1705,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1017,6 +1049,9 @@ func DelCliConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
+	XUserID := r.Header.Get("X-User-ID")
+	log.Println("[update_cli_info] userID:", XUserID)
+
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -1032,7 +1067,7 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
-			Error:   1,
+			Error:   1801,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1047,7 +1082,7 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
-			Error:   2,
+			Error:   1802,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1065,7 +1100,7 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求参数为空",
-			Error:   3,
+			Error:   1803,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1088,7 +1123,7 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端不存在, err:%v", err),
-			Error:   4,
+			Error:   1804,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1103,7 +1138,7 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("修改客户端信息失败, err:%v", err),
-			Error:   5,
+			Error:   1805,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1134,7 +1169,7 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 			responseError := ResponseError{
 				Status:  false,
 				Message: fmt.Sprintf("修改客户端IP地址失败, err:%v", err),
-				Error:   6,
+				Error:   1806,
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(responseError)
@@ -1152,6 +1187,9 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
+	XUserID := r.Header.Get("X-User-ID")
+	log.Println("[update_cli_addr] userID:", XUserID)
+
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -1167,7 +1205,7 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
-			Error:   1,
+			Error:   1901,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1185,7 +1223,7 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
-			Error:   2,
+			Error:   1902,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1200,7 +1238,7 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求参数为空",
-			Error:   3,
+			Error:   1903,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1216,7 +1254,7 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端不存在, err:%v", err),
-			Error:   4,
+			Error:   1904,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1231,7 +1269,7 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法获取到当前可用的客户端IP, err:%v", err),
-			Error:   7,
+			Error:   1905,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1248,7 +1286,7 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("在数据库中修改客户端IP地址失败, err:%v", err),
-			Error:   5,
+			Error:   1906,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1278,7 +1316,7 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("在文件中修改客户端IP地址失败, err:%v", err),
-			Error:   6,
+			Error:   1907,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1296,6 +1334,10 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 }
 
 func UpdateCliMap(w http.ResponseWriter, r *http.Request) {
+
+	XUserID := r.Header.Get("X-User-ID")
+	log.Println("[update_cli_map] userID:", XUserID)
+
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -1311,7 +1353,7 @@ func UpdateCliMap(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
-			Error:   1,
+			Error:   2001,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1329,7 +1371,7 @@ func UpdateCliMap(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
-			Error:   2,
+			Error:   2002,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1344,7 +1386,7 @@ func UpdateCliMap(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求参数为空",
-			Error:   3,
+			Error:   2003,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1360,7 +1402,7 @@ func UpdateCliMap(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端不存在, err:%v", err),
-			Error:   4,
+			Error:   2004,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1383,7 +1425,7 @@ func UpdateCliMap(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("解析 %s 文件出错, err:%v", changClientFile, err),
-			Error:   5,
+			Error:   2005,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1410,7 +1452,7 @@ func UpdateCliMap(w http.ResponseWriter, r *http.Request) {
 				responseError := ResponseError{
 					Status:  false,
 					Message: fmt.Sprintf("解析 %s 时出错, err:%v", cidr, err),
-					Error:   6,
+					Error:   2006,
 				}
 				w.Header().Set("Content-Type", "application/json")
 				json.NewEncoder(w).Encode(responseError)
@@ -1430,7 +1472,7 @@ func UpdateCliMap(w http.ResponseWriter, r *http.Request) {
 			responseError := ResponseError{
 				Status:  false,
 				Message: fmt.Sprintf("解析 %s 时出错, err:%v", postClientAddressMapping.CliMapping, err),
-				Error:   7,
+				Error:   2007,
 			}
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(responseError)
@@ -1449,7 +1491,7 @@ func UpdateCliMap(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("在文件中修改客户端IP地址失败, err:%v", err),
-			Error:   8,
+			Error:   2008,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1466,6 +1508,9 @@ func UpdateCliMap(w http.ResponseWriter, r *http.Request) {
 }
 
 func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
+	XUserID := r.Header.Get("X-User-ID")
+	log.Println("[update_subnet_cli_addr] userID:", XUserID)
+
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -1481,7 +1526,7 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
-			Error:   1,
+			Error:   2101,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1498,7 +1543,7 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
-			Error:   2,
+			Error:   2102,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1513,7 +1558,7 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求参数为空",
-			Error:   3,
+			Error:   2103,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1539,7 +1584,7 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("子网不存在, err:%v", err),
-			Error:   4,
+			Error:   2104,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1555,7 +1600,7 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端不存在, err:%v", err),
-			Error:   6,
+			Error:   2106,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1573,7 +1618,7 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法获取到当前可用的客户端IP, err:%v", err),
-			Error:   7,
+			Error:   2107,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1589,7 +1634,7 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("在数据库中修改客户端IP地址失败, err:%v", err),
-			Error:   5,
+			Error:   2105,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
@@ -1619,7 +1664,7 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("在文件中修改客户端IP地址失败, err:%v", err),
-			Error:   6,
+			Error:   2106,
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(responseError)
