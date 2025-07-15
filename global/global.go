@@ -11,19 +11,23 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 
+	"golang.org/x/net/html"
+
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/sha3"
 	"gopkg.in/ini.v1"
 )
@@ -72,6 +76,7 @@ var GlobalJWireGuardini *JWireGuardIni
 var GlobalEncryptKey string
 var GlobalJWireGuardDBFile string
 var GlobalOpenVPNPath OpenVPNPath
+var Log *logrus.Logger
 
 // 定义多个时间服务器
 var timeServers = []string{
@@ -650,7 +655,7 @@ func ShellUpdateClient(cliId string) error {
 	// Create the .ovpn file
 	err = CreateOVPNFile(headClient, ovpnClient, files)
 	if err != nil {
-		fmt.Println("Error creating .ovpn file:", err)
+		// Log.Errorln("Error creating .ovpn file:", err)
 		return fmt.Errorf("无法合成%s.ovpn, err:%v", cliId, err)
 	}
 
@@ -741,7 +746,7 @@ func ChangeDir(dir string) error {
 		return fmt.Errorf("获取当前目录失败: %v", err)
 	}
 
-	log.Println("当前目录:", currentDir)
+	Log.Debugln("当前目录:", currentDir)
 	return nil
 }
 
@@ -907,7 +912,7 @@ func HandleConnection(conn net.Conn) {
 		message, err := reader.ReadString('\n')
 		if err != nil {
 			// 如果读取数据时出错（如客户端断开连接），打印错误并退出循环
-			fmt.Println("[global] Error reading from connection:", err)
+			Log.Errorln("[global] Error reading from connection:", err)
 			break
 		}
 
@@ -918,7 +923,7 @@ func HandleConnection(conn net.Conn) {
 		_, err = conn.Write([]byte(message))
 		if err != nil {
 			// 如果写入数据时发生错误，打印错误并退出循环
-			log.Println("[global] Error writing to connection:", err)
+			Log.Errorf("[global] Error writing to connection:", err)
 			break
 		}
 	}
@@ -926,4 +931,34 @@ func HandleConnection(conn net.Conn) {
 
 func IsAdmin(userID string) bool {
 	return userID == "21232f297a57a5a743894a0e4a801fc3"
+}
+
+// 生成6位随机数
+func Random6DigitString() (string, error) {
+	var n uint32
+	err := binary.Read(rand.Reader, binary.BigEndian, &n)
+	if err != nil {
+		return "", err
+	}
+	n = n % 1_000_000 // 确保是 6 位数
+	return fmt.Sprintf("%06d", n), nil
+}
+
+// 验证邮箱格式
+func IsValidEmail(email string) bool {
+	// 一个简单的邮箱正则表达式
+	pattern := `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`
+	match, _ := regexp.MatchString(pattern, email)
+	return match
+}
+
+// 邮箱替换
+func ReplaceText(n *html.Node, old, new string) {
+	if n.Type == html.TextNode {
+		n.Data = strings.ReplaceAll(n.Data, old, new)
+	}
+
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		ReplaceText(c, old, new)
+	}
 }

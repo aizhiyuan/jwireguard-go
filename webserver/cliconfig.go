@@ -92,22 +92,22 @@ func registerCliRoutes() {
 
 func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 	XUserID := r.Header.Get("X-User-ID")
-	log.Println("[get_sub_network_list] userID:", XUserID)
+	global.Log.Debugln("[get_sub_network_list] userID:", XUserID)
 	// 获取客户端的 IP 和端口
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		log.Printf("[get_sub_network_list] Error parsing IP address code %d", http.StatusInternalServerError)
+		global.Log.Errorf("[get_sub_network_list] 解析 IP 地址代码时出错 %d", http.StatusInternalServerError)
 		return
 	}
-	log.Printf("[get_sub_network_list] client [%s:%s]", ip, port)
+	global.Log.Debugf("[get_sub_network_list] client [%s:%s]", ip, port)
 	// 解析 URL 参数
 	query := r.URL.Query()
 	userId := query.Get("user_id")
-	log.Printf("[get_sub_network_list] user_id:[%s]", userId)
+	global.Log.Debugf("[get_sub_network_list] user_id:[%s]", userId)
 	// 判断参数是否为空
 	if userId == "" {
-		log.Println("[get_sub_network_list] 参数为空")
+		global.Log.Errorln("[get_sub_network_list] 参数为空")
 		// 如果参数为空，返回 JSON 错误响应
 		responseError := ResponseError{
 			Status:  false,
@@ -120,7 +120,19 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 查询连接状态
-	database.MonitorDatabase(global.GlobalDB)
+	global.GlobalDB, err = database.MonitorDatabase(global.GlobalDB)
+	if err != nil {
+		global.Log.Errorf("[get_sub_network_list] 数据库连接失败, err:%v", err)
+		// 如果参数为空，返回 JSON 错误响应
+		responseError := ResponseError{
+			Status:  false,
+			Message: fmt.Sprintf("数据库连接失败, err:%v", err),
+			Error:   0001,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(responseError)
+		return
+	}
 
 	var user = database.User{}
 	var subnet = database.Subnet{}
@@ -132,7 +144,7 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 	// 遍历用户表
 	userIds, err := user.QueryUserIds(global.GlobalDB, userId)
 	if err != nil {
-		log.Printf("[get_sub_network_list] 无法获取用户, err:%v", err)
+		global.Log.Errorf("[get_sub_network_list] 无法获取用户, err:%v", err)
 		// 如果参数为空，返回 JSON 错误响应
 		responseError := ResponseError{
 			Status:  false,
@@ -145,7 +157,7 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(userIds) <= 0 {
-		log.Println("[get_sub_network_list] 用户列表为空")
+		global.Log.Errorln("[get_sub_network_list] 用户列表为空")
 		// 如果参数为空，返回 JSON 错误响应
 		responseError := ResponseError{
 			Status:  false,
@@ -161,7 +173,7 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 	serIds, err := user.GetSubnetIdsByUserIds(global.GlobalDB, userIds)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[get_sub_network_list] 无法获取子网序号组, err:%v", err)
+		global.Log.Errorf("[get_sub_network_list] 无法获取子网序号组, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法获取子网序号组, err:%v", err),
@@ -174,7 +186,7 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 
 	if len(serIds) <= 0 {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Println("[get_sub_network_list] 子网列表为空")
+		global.Log.Errorln("[get_sub_network_list] 子网列表为空")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "子网列表为空",
@@ -189,7 +201,7 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 	subnets, err := subnet.GetSubnetBySerIDs(global.GlobalDB, serIds)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[get_sub_network_list] 无法获取子网列表, err:%v", err)
+		global.Log.Errorf("[get_sub_network_list] 无法获取子网列表, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法获取子网列表, err:%v", err),
@@ -202,7 +214,7 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 
 	if len(subnets) <= 0 {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Println("[get_sub_network_list] 子网列表为空")
+		global.Log.Errorln("[get_sub_network_list] 子网列表为空")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "子网列表为空",
@@ -226,7 +238,7 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 	jsonData, err := json.Marshal(responseSubNetworkList)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[get_sub_network_list] 无法将JSON对象转为字符串, err:%v", err)
+		global.Log.Errorf("[get_sub_network_list] 无法将JSON对象转为字符串, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法将JSON对象转为字符串, err:%v", err),
@@ -245,24 +257,24 @@ func GetSubNetworkList(w http.ResponseWriter, r *http.Request) {
 
 func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 	XUserID := r.Header.Get("X-User-ID")
-	log.Println("[get_cli_config] userID:", XUserID)
+	global.Log.Debugln("[get_cli_config] userID:", XUserID)
 
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		log.Printf("[get_cli_config] Error parsing IP address code %d", http.StatusInternalServerError)
+		global.Log.Errorf("[get_cli_config] 解析 IP 地址代码时出错 %d", http.StatusInternalServerError)
 		return
 	}
-	log.Printf("[get_cli_config] client [%s:%s]", ip, port)
+	global.Log.Debugf("[get_cli_config] client [%s:%s]", ip, port)
 	// 解析 URL 参数
 	query := r.URL.Query()
 	cliId := query.Get("cli_id")
-	log.Printf("[get_cli_config] cli_id:[%s]", cliId)
+	global.Log.Debugf("[get_cli_config] cli_id:[%s]", cliId)
 
 	// 判断参数是否为空
 	if cliId == "" {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Println("[get_cli_config] 参数为空")
+		global.Log.Errorln("[get_cli_config] 参数为空")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "参数为空",
@@ -274,7 +286,19 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 查询连接状态
-	database.MonitorDatabase(global.GlobalDB)
+	global.GlobalDB, err = database.MonitorDatabase(global.GlobalDB)
+	if err != nil {
+		global.Log.Errorf("[get_cli_config] 数据库连接失败, err:%v", err)
+		// 如果参数为空，返回 JSON 错误响应
+		responseError := ResponseError{
+			Status:  false,
+			Message: fmt.Sprintf("数据库连接失败, err:%v", err),
+			Error:   0001,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(responseError)
+		return
+	}
 
 	// 创建用户配置
 	var cliConfig = database.CliConfig{}
@@ -285,7 +309,7 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 	cliConfig.CliID.String = cliId
 	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
-		log.Printf("[get_cli_config] 客户端不存在, err:%v", err)
+		global.Log.Errorf("[get_cli_config] 客户端不存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端不存在, err:%v", err),
@@ -313,7 +337,7 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 
 	for _, file := range files {
 		if !global.CheckFileExists(file) {
-			log.Printf("[get_cli_config] 该%s文件不存在", file)
+			global.Log.Errorf("[get_cli_config] 该%s文件不存在", file)
 			responseError := ResponseError{
 				Status:  false,
 				Message: fmt.Sprintf("该%s文件不存在", file),
@@ -328,7 +352,7 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 	// Create the .ovpn file
 	err = global.CreateOVPNFile(headClient, ovpnClient, files)
 	if err != nil {
-		log.Printf("[get_cli_config] 无法合成%s.ovpn, err:%v", cliId, err)
+		global.Log.Errorf("[get_cli_config] 无法合成%s.ovpn, err:%v", cliId, err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法合成%s.ovpn, err:%v", cliId, err),
@@ -341,7 +365,7 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 
 	// 检查配置文件是否存在
 	if !global.CheckFileExists(ovpnClient) {
-		log.Println("[get_cli_config] 客户端配置不存在")
+		global.Log.Errorln("[get_cli_config] 客户端配置不存在")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "客户端配置不存在",
@@ -354,7 +378,7 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 
 	cliConfigText, err := ioutil.ReadFile(ovpnClient)
 	if err != nil {
-		log.Printf("[get_cli_config] 客户端配置读取失败, err:%v", err)
+		global.Log.Errorf("[get_cli_config] 客户端配置读取失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端配置读取失败, err:%v", err),
@@ -381,7 +405,7 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 	jsonData, err := json.Marshal(responseCliConfig)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[get_cli_config] 无法将JSON对象转为字符串, err:%v", err)
+		global.Log.Errorf("[get_cli_config] 无法将JSON对象转为字符串, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法将JSON对象转为字符串, err:%v", err),
@@ -399,23 +423,23 @@ func GetCliConfig(w http.ResponseWriter, r *http.Request) {
 
 func GetCliList(w http.ResponseWriter, r *http.Request) {
 	XUserID := r.Header.Get("X-User-ID")
-	log.Println("[get_cli_list] userID:", XUserID)
+	global.Log.Debugf("[get_cli_list] userID:", XUserID)
 
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		log.Printf("[get_cli_list] Error parsing IP address code %d", http.StatusInternalServerError)
+		global.Log.Errorf("[get_cli_list] 解析 IP 地址代码时出错 %d", http.StatusInternalServerError)
 		return
 	}
-	log.Printf("[get_cli_list] client [%s:%s]", ip, port)
+	global.Log.Debugf("[get_cli_list] client [%s:%s]", ip, port)
 	// 解析 URL 参数
 	query := r.URL.Query()
 	serId := query.Get("ser_id")
-	log.Printf("[get_cli_list] ser_id:[%s]", serId)
+	global.Log.Debugf("[get_cli_list] ser_id:[%s]", serId)
 	// 判断参数是否为空
 	if serId == "" {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Println("[get_cli_list] 参数为空")
+		global.Log.Errorln("[get_cli_list] 参数为空")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "参数为空",
@@ -427,7 +451,19 @@ func GetCliList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 查询连接状态
-	database.MonitorDatabase(global.GlobalDB)
+	global.GlobalDB, err = database.MonitorDatabase(global.GlobalDB)
+	if err != nil {
+		global.Log.Errorf("[get_cli_list] 数据库连接失败, err:%v", err)
+		// 如果参数为空，返回 JSON 错误响应
+		responseError := ResponseError{
+			Status:  false,
+			Message: fmt.Sprintf("数据库连接失败, err:%v", err),
+			Error:   0001,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(responseError)
+		return
+	}
 
 	// 创建用户配置
 	cliConfig := database.CliConfig{}
@@ -437,7 +473,7 @@ func GetCliList(w http.ResponseWriter, r *http.Request) {
 	cliConfig.SerID.String = serId
 	cliConfigs, err := cliConfig.GetCliConfigBySerID(global.GlobalDB)
 	if err != nil {
-		log.Printf("[get_cli_list] 获取客户端列表失败, err:%v", err)
+		global.Log.Errorf("[get_cli_list] 获取客户端列表失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("获取客户端列表失败, err:%v", err),
@@ -451,7 +487,7 @@ func GetCliList(w http.ResponseWriter, r *http.Request) {
 	exportedCliConfigs := database.ConvertCliConfigs(cliConfigs)
 
 	if len(cliConfigs) <= 0 {
-		log.Println("[get_cli_list] 客户端列表为空")
+		global.Log.Errorln("[get_cli_list] 客户端列表为空")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "客户端列表为空",
@@ -472,7 +508,7 @@ func GetCliList(w http.ResponseWriter, r *http.Request) {
 	jsonData, err := json.Marshal(responseCliList)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[get_cli_list] 无法将JSON对象转为字符串, err:%v", err)
+		global.Log.Errorf("[get_cli_list] 无法将JSON对象转为字符串, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法将JSON对象转为字符串, err:%v", err),
@@ -490,23 +526,23 @@ func GetCliList(w http.ResponseWriter, r *http.Request) {
 
 func GetCliInfo(w http.ResponseWriter, r *http.Request) {
 	XUserID := r.Header.Get("X-User-ID")
-	log.Println("[get_cli_info] userID:", XUserID)
+	global.Log.Debugln("[get_cli_info] userID:", XUserID)
 
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		log.Printf("[get_cli_info] Error parsing IP address code %d", http.StatusInternalServerError)
+		global.Log.Errorf("[get_cli_info] 解析 IP 地址代码时出错 %d", http.StatusInternalServerError)
 		return
 	}
-	log.Printf("[get_cli_info] client [%s:%s]", ip, port)
+	global.Log.Debugf("[get_cli_info] client [%s:%s]", ip, port)
 	// 解析 URL 参数
 	query := r.URL.Query()
 	cliId := query.Get("cli_id")
-	log.Printf("[get_cli_info] cli_id:[%s]", cliId)
+	global.Log.Debugf("[get_cli_info] cli_id:[%s]", cliId)
 	// 判断参数是否为空
 	if cliId == "" {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Println("[get_cli_list] 参数为空")
+		global.Log.Errorln("[get_cli_info] 参数为空")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "参数为空",
@@ -518,7 +554,19 @@ func GetCliInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 查询连接状态
-	database.MonitorDatabase(global.GlobalDB)
+	global.GlobalDB, err = database.MonitorDatabase(global.GlobalDB)
+	if err != nil {
+		global.Log.Errorf("[get_cli_info] 数据库连接失败, err:%v", err)
+		// 如果参数为空，返回 JSON 错误响应
+		responseError := ResponseError{
+			Status:  false,
+			Message: fmt.Sprintf("数据库连接失败, err:%v", err),
+			Error:   0001,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(responseError)
+		return
+	}
 
 	// 创建用户配置
 	cliConfig := database.CliConfig{}
@@ -529,7 +577,7 @@ func GetCliInfo(w http.ResponseWriter, r *http.Request) {
 
 	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
-		log.Printf("[get_cli_list] 获取客户端信息失败!, err:%v", err)
+		global.Log.Errorf("[get_cli_list] 获取客户端信息失败!, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("获取客户端信息失败!, err:%v", err),
@@ -554,7 +602,7 @@ func GetCliInfo(w http.ResponseWriter, r *http.Request) {
 	err = global.WriteToFile(changClientFile, changClientAddr)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[update_cli_addr] 在文件中修改客户端IP地址失败, err:%v", err)
+		global.Log.Errorf("[update_cli_addr] 在文件中修改客户端IP地址失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("在文件中修改客户端IP地址失败, err:%v", err),
@@ -575,7 +623,7 @@ func GetCliInfo(w http.ResponseWriter, r *http.Request) {
 	jsonData, err := json.Marshal(responseCliInfo)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[get_cli_list] 无法将JSON对象转为字符串, err:%v", err)
+		global.Log.Errorf("[get_cli_list] 无法将JSON对象转为字符串, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法将JSON对象转为字符串, err:%v", err),
@@ -593,19 +641,19 @@ func GetCliInfo(w http.ResponseWriter, r *http.Request) {
 
 func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 	XUserID := r.Header.Get("X-User-ID")
-	log.Println("[add_cli_config] userID:", XUserID)
+	global.Log.Debugln("[add_cli_config] userID:", XUserID)
 
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		log.Printf("[add_cli_config] Error parsing IP address code %d", http.StatusInternalServerError)
+		global.Log.Errorf("[add_cli_config] 解析 IP 地址代码时出错 %d", http.StatusInternalServerError)
 		return
 	}
-	log.Printf("[add_cli_config] client [%s:%s]", ip, port)
+	global.Log.Errorf("[add_cli_config] client [%s:%s]", ip, port)
 	// 确保请求方法是POST
 	if r.Method != http.MethodPost {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Println("[add_cli_config] 请求类型不是Post")
+		global.Log.Errorln("[add_cli_config] 请求类型不是Post")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
@@ -622,7 +670,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 	// 使用封装的parseJSONBody函数解析请求体
 	if err := parseJSONBody(r, &portCliConfig); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		log.Printf("[add_cli_config] 解析JSON请求参数错误, err:%v", err)
+		global.Log.Errorf("[add_cli_config] 解析JSON请求参数错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
@@ -632,7 +680,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(responseError)
 		return
 	}
-	log.Printf("[add_cli_config] json:[%+v]", portCliConfig)
+	global.Log.Debugf("[add_cli_config] json:[%+v]", portCliConfig)
 	// 判断参数是否为空
 	if portCliConfig.CliID == "" ||
 		portCliConfig.SerName == "" ||
@@ -640,7 +688,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 		portCliConfig.CliSN == "" ||
 		portCliConfig.CliKey == "" {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Println("[add_cli_config] 请求参数为空")
+		global.Log.Errorf("[add_cli_config] 请求参数为空")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求参数为空",
@@ -658,7 +706,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 	cliKeyValue := global.GenerateMD5(cliKeyString)
 
 	if cliKeyValue != portCliConfig.CliKey {
-		log.Println("[add_cli_config] KEY值校验错误")
+		global.Log.Errorln("[add_cli_config] KEY值校验错误")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "KEY值校验错误",
@@ -670,7 +718,19 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 查询连接状态
-	database.MonitorDatabase(global.GlobalDB)
+	global.GlobalDB, err = database.MonitorDatabase(global.GlobalDB)
+	if err != nil {
+		global.Log.Errorf("[add_cli_config] 数据库连接失败, err:%v", err)
+		// 如果参数为空，返回 JSON 错误响应
+		responseError := ResponseError{
+			Status:  false,
+			Message: fmt.Sprintf("数据库连接失败, err:%v", err),
+			Error:   0001,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(responseError)
+		return
+	}
 
 	// 创建数据库对象
 	subnet := database.Subnet{}
@@ -684,7 +744,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 	cliConfig.CliID.String = portCliConfig.CliID
 	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err == nil {
-		log.Printf("[add_cli_config] 客户端已存在!, err:%v", err)
+		global.Log.Errorf("[add_cli_config] 客户端已存在!, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端已存在!, err:%v", err),
@@ -702,7 +762,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 		//获取新的网段
 		newSubNum, err := subnet.GetNewSubnetNumber(global.GlobalDB)
 		if err != nil {
-			log.Printf("[add_cli_config] 子网网段已满, err:%v", err)
+			global.Log.Errorf("[add_cli_config] 子网网段已满, err:%v", err)
 			responseError := ResponseError{
 				Status:  false,
 				Message: fmt.Sprintf("子网网段已满, err:%v", err),
@@ -717,7 +777,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 		subnet.SerName.String = portCliConfig.SerName
 		err = subnet.InsertSubnet(global.GlobalDB)
 		if err != nil {
-			log.Printf("[add_cli_config] 子网添加失败, err:%v", err)
+			global.Log.Errorf("[add_cli_config] 子网添加失败, err:%v", err)
 			responseError := ResponseError{
 				Status:  false,
 				Message: fmt.Sprintf("子网添加失败, err:%v", err),
@@ -734,7 +794,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 	cliConfig.CliID.String = portCliConfig.CliID
 	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err == nil {
-		log.Printf("[add_cli_config] 客户端已存在, err:%v", err)
+		global.Log.Errorf("[add_cli_config] 客户端已存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端已存在, err:%v", err),
@@ -749,7 +809,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 	ipPrefix := fmt.Sprintf("%s.%d", global.GlobalJWireGuardini.IPPrefix, subnet.SerNum.Int32)
 	cliAddress, err := FindUnusedIP(global.GlobalOpenVPNPath.CcdPath, ipPrefix)
 	if err != nil {
-		log.Printf("[add_cli_config] 无法获取到当前可用的客户端IP, err:%v", err)
+		global.Log.Errorf("[add_cli_config] 无法获取到当前可用的客户端IP, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法获取到当前可用的客户端IP, err:%v", err),
@@ -765,7 +825,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 	// 添加客户端
 	err = global.ShellAddClient(portCliConfig.CliID, cliAddress)
 	if err != nil {
-		log.Printf("[add_cli_config] 无法添加客户端, err:%v", err)
+		global.Log.Errorf("[add_cli_config] 无法添加客户端, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法添加客户端, err:%v", err),
@@ -788,7 +848,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 
 	err = cliConfig.InsertCliConfig(global.GlobalDB)
 	if err != nil {
-		log.Printf("[add_cli_config] 数据库创建客户端失败, err:%v", err)
+		global.Log.Errorf("[add_cli_config] 数据库创建客户端失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("数据库创建客户端失败, err:%v", err),
@@ -809,7 +869,7 @@ func AddCLiConfig(w http.ResponseWriter, r *http.Request) {
 
 func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 	XUserID := r.Header.Get("X-User-ID")
-	log.Println("[update_cli_config] userID:", XUserID)
+	global.Log.Debugln("[update_cli_config] userID:", XUserID)
 
 	currentUserID := r.Context().Value("userID").(string)
 	if !global.IsAdmin(currentUserID) { // 需要实现权限验证逻辑
@@ -826,14 +886,14 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		log.Printf("[update_cli_config] Error parsing IP address code %d", http.StatusInternalServerError)
+		global.Log.Errorf("[update_cli_config] 解析 IP 地址代码时出错 %d", http.StatusInternalServerError)
 		return
 	}
-	log.Printf("[update_cli_config] client [%s:%s]", ip, port)
+	global.Log.Debugf("[update_cli_config] client [%s:%s]", ip, port)
 	// 确保请求方法是POST
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
-		log.Println("[update_cli_config] 请求类型不是Post")
+		global.Log.Errorln("[update_cli_config] 请求类型不是Post")
 		// 如果参数为空，返回 JSON 错误响应
 		responseError := ResponseError{
 			Status:  false,
@@ -851,7 +911,7 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 	// 使用封装的parseJSONBody函数解析请求体
 	if err := parseJSONBody(r, &portCliConfig); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		log.Printf("[update_cli_config] 解析JSON请求参数错误, err:%v", err)
+		global.Log.Debugf("[update_cli_config] 解析JSON请求参数错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
@@ -861,7 +921,7 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(responseError)
 		return
 	}
-	log.Printf("[update_cli_config] json:[%+v]", portCliConfig)
+	global.Log.Debugf("[update_cli_config] json:[%+v]", portCliConfig)
 	// 判断参数是否为空
 	if portCliConfig.CliID == "" ||
 		portCliConfig.SerName == "" ||
@@ -869,7 +929,7 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 		portCliConfig.CliSN == "" ||
 		portCliConfig.CliKey == "" {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Println("[update_cli_config] 请求参数为空")
+		global.Log.Errorln("[update_cli_config] 请求参数为空")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求参数为空",
@@ -881,7 +941,19 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 查询连接状态
-	database.MonitorDatabase(global.GlobalDB)
+	global.GlobalDB, err = database.MonitorDatabase(global.GlobalDB)
+	if err != nil {
+		global.Log.Errorf("[update_cli_config] 数据库连接失败, err:%v", err)
+		// 如果参数为空，返回 JSON 错误响应
+		responseError := ResponseError{
+			Status:  false,
+			Message: fmt.Sprintf("数据库连接失败, err:%v", err),
+			Error:   0001,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(responseError)
+		return
+	}
 
 	// 创建客户端对象
 	cliConfig := database.CliConfig{}
@@ -892,7 +964,7 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 	cliConfig.CliID.String = portCliConfig.CliID
 	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
-		log.Printf("[update_cli_config] 客户端不存在, err:%v", err)
+		global.Log.Errorf("[update_cli_config] 客户端不存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端不存在, err:%v", err),
@@ -909,7 +981,7 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 	cliKeyString := fmt.Sprintf("%s%s", serNameSHA3, portCliConfig.CliSN)
 	cliKeyValue := global.GenerateMD5(cliKeyString)
 	if cliKeyValue != portCliConfig.CliKey {
-		log.Println("[update_cli_config] KEY值校验错误")
+		global.Log.Errorln("[update_cli_config] KEY值校验错误")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "KEY值校验错误",
@@ -922,7 +994,7 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 
 	err = global.ShellUpdateClient(portCliConfig.CliID)
 	if err != nil {
-		log.Printf("[update_cli_config] 客户端更新失败, err:%v", err)
+		global.Log.Errorf("[update_cli_config] 客户端更新失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端更新失败, err:%v", err),
@@ -943,23 +1015,23 @@ func UpdateCliConfig(w http.ResponseWriter, r *http.Request) {
 func DelCliConfig(w http.ResponseWriter, r *http.Request) {
 
 	XUserID := r.Header.Get("X-User-ID")
-	log.Println("[del_cli_config] userID:", XUserID)
+	global.Log.Debugln("[del_cli_config] userID:", XUserID)
 
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		log.Printf("[del_cli_config] Error parsing IP address code %d", http.StatusInternalServerError)
+		global.Log.Errorf("[del_cli_config] 解析 IP 地址代码时出错 %d", http.StatusInternalServerError)
 		return
 	}
-	log.Printf("[del_cli_config] client [%s:%s]", ip, port)
+	global.Log.Debugf("[del_cli_config] client [%s:%s]", ip, port)
 	// 解析 URL 参数
 	query := r.URL.Query()
 	cliId := query.Get("cli_id")
-	log.Printf("[del_cli_config] cli_id:[%s]", cliId)
+	global.Log.Debugf("[del_cli_config] cli_id:[%s]", cliId)
 	// 判断参数是否为空
 	if cliId == "" {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Println("[del_cli_config] 请求参数为空")
+		global.Log.Errorln("[del_cli_config] 请求参数为空")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求参数为空",
@@ -971,7 +1043,19 @@ func DelCliConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 查询连接状态
-	database.MonitorDatabase(global.GlobalDB)
+	global.GlobalDB, err = database.MonitorDatabase(global.GlobalDB)
+	if err != nil {
+		global.Log.Errorf("[del_cli_config] 数据库连接失败, err:%v", err)
+		// 如果参数为空，返回 JSON 错误响应
+		responseError := ResponseError{
+			Status:  false,
+			Message: fmt.Sprintf("数据库连接失败, err:%v", err),
+			Error:   0001,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(responseError)
+		return
+	}
 
 	// 创建数据库对象
 	subnet := database.Subnet{}
@@ -985,7 +1069,7 @@ func DelCliConfig(w http.ResponseWriter, r *http.Request) {
 	cliConfig.CliID.String = cliId
 	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
-		log.Printf("[del_cli_config] 客户端不存在, err:%v", err)
+		global.Log.Errorf("[del_cli_config] 客户端不存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端不存在, err:%v", err),
@@ -1000,7 +1084,7 @@ func DelCliConfig(w http.ResponseWriter, r *http.Request) {
 
 	err = cliConfig.DeleteCliConfig(global.GlobalDB)
 	if err != nil {
-		log.Printf("[del_cli_config] 删除客户端失败, err:%v", err)
+		global.Log.Errorf("[del_cli_config] 删除客户端失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("删除客户端失败, err:%v", err),
@@ -1014,7 +1098,7 @@ func DelCliConfig(w http.ResponseWriter, r *http.Request) {
 	// 查询客户端
 	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err == nil {
-		log.Printf("[del_cli_config] 客户端删除失败, err:%v", err)
+		global.Log.Errorf("[del_cli_config] 客户端删除失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端删除失败, err:%v", err),
@@ -1028,7 +1112,7 @@ func DelCliConfig(w http.ResponseWriter, r *http.Request) {
 	// 执行SHELL命令
 	err = global.ShellDelClient(cliId)
 	if err != nil {
-		log.Printf("[del_cli_config] 无法删除客户端, err:%v", err)
+		global.Log.Errorf("[del_cli_config] 无法删除客户端, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法删除客户端, err:%v", err),
@@ -1050,20 +1134,20 @@ func DelCliConfig(w http.ResponseWriter, r *http.Request) {
 
 func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 	XUserID := r.Header.Get("X-User-ID")
-	log.Println("[update_cli_info] userID:", XUserID)
+	global.Log.Debugln("[update_cli_info] userID:", XUserID)
 
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		log.Printf("[update_cli_info] Error parsing IP address code %d", http.StatusInternalServerError)
+		log.Printf("[update_cli_info] 解析 IP 地址代码时出错 %d", http.StatusInternalServerError)
 		return
 	}
-	log.Printf("[update_cli_info] client [%s:%s]", ip, port)
+	global.Log.Debugf("[update_cli_info] client [%s:%s]", ip, port)
 	// 确保请求方法是POST
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		// 如果参数为空，返回 JSON 错误响应
-		log.Println("[update_cli_info] 请求类型不是Post")
+		global.Log.Errorln("[update_cli_info] 请求类型不是Post")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
@@ -1078,7 +1162,7 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 	// 使用封装的parseJSONBody函数解析请求体
 	if err := parseJSONBody(r, &postClientInfoRecv); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		log.Printf("[update_cli_info] 解析JSON请求参数错误, err:%v", err)
+		global.Log.Errorf("[update_cli_info] 解析JSON请求参数错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
@@ -1089,14 +1173,14 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("[update_cli_info] json:[%+v]", postClientInfoRecv)
+	global.Log.Debugf("[update_cli_info] json:[%+v]", postClientInfoRecv)
 
 	// 创建数据对象
 	postClientInfo := postClientInfoRecv.ConvertToCliConfig()
 
 	if postClientInfo.CliID.String == "" {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Println("[update_cli_info] 请求参数为空")
+		global.Log.Errorln("[update_cli_info] 请求参数为空")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求参数为空",
@@ -1108,7 +1192,19 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 查询连接状态
-	database.MonitorDatabase(global.GlobalDB)
+	global.GlobalDB, err = database.MonitorDatabase(global.GlobalDB)
+	if err != nil {
+		global.Log.Errorf("[update_cli_info] 数据库连接失败, err:%v", err)
+		// 如果参数为空，返回 JSON 错误响应
+		responseError := ResponseError{
+			Status:  false,
+			Message: fmt.Sprintf("数据库连接失败, err:%v", err),
+			Error:   0001,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(responseError)
+		return
+	}
 
 	// 初始化数据库.
 	postClientInfo.CreateCliConfig(global.GlobalDB)
@@ -1119,7 +1215,7 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 	err = postClientInfoBak.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[update_cli_info] 客户端不存在, err:%v", err)
+		global.Log.Errorf("[update_cli_info] 客户端不存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端不存在, err:%v", err),
@@ -1134,7 +1230,7 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 	err = postClientInfo.UpdateCliConfig(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[update_cli_info] 修改客户端信息失败, err:%v", err)
+		global.Log.Errorf("[update_cli_info] 修改客户端信息失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("修改客户端信息失败, err:%v", err),
@@ -1165,7 +1261,7 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 		err = global.WriteToFile(changClientFile, changClientAddr)
 		if err != nil {
 			// 如果参数为空，返回 JSON 错误响应
-			log.Printf("[update_cli_info] 修改客户端IP地址失败, err:%v", err)
+			global.Log.Errorf("[update_cli_info] 修改客户端IP地址失败, err:%v", err)
 			responseError := ResponseError{
 				Status:  false,
 				Message: fmt.Sprintf("修改客户端IP地址失败, err:%v", err),
@@ -1188,20 +1284,20 @@ func UpdateCliInfo(w http.ResponseWriter, r *http.Request) {
 
 func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 	XUserID := r.Header.Get("X-User-ID")
-	log.Println("[update_cli_addr] userID:", XUserID)
+	global.Log.Debugln("[update_cli_addr] userID:", XUserID)
 
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		log.Printf("[update_cli_addr] Error parsing IP address code %d", http.StatusInternalServerError)
+		log.Printf("[update_cli_addr] 解析 IP 地址代码时出错 %d", http.StatusInternalServerError)
 		return
 	}
-	log.Printf("[update_cli_addr] client [%s:%s]", ip, port)
+	global.Log.Debugf("[update_cli_addr] client [%s:%s]", ip, port)
 	// 确保请求方法是POST
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		// 如果参数为空，返回 JSON 错误响应
-		log.Println("[update_cli_addr] 请求类型不是Post")
+		global.Log.Errorln("[update_cli_addr] 请求类型不是Post")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
@@ -1219,7 +1315,7 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 	// 使用封装的parseJSONBody函数解析请求体
 	if err := parseJSONBody(r, &postClientAddress); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		log.Printf("[update_cli_addr] 解析JSON请求参数错误, err:%v", err)
+		global.Log.Errorf("[update_cli_addr] 解析JSON请求参数错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
@@ -1230,11 +1326,11 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("[update_cli_addr] json:[%+v]", postClientAddress)
+	global.Log.Debugf("[update_cli_addr] json:[%+v]", postClientAddress)
 
 	if postClientAddress.CliID == "" || postClientAddress.Address == "" {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Println("[update_cli_addr] 请求参数为空")
+		global.Log.Errorln("[update_cli_addr] 请求参数为空")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求参数为空",
@@ -1250,7 +1346,7 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 	err = clientConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[update_cli_addr] 客户端不存在, err:%v", err)
+		global.Log.Errorf("[update_cli_addr] 客户端不存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端不存在, err:%v", err),
@@ -1265,7 +1361,7 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 
 	cliAddress, err := FindUnusedIP(global.GlobalOpenVPNPath.CcdPath, ipPrefix)
 	if err != nil {
-		log.Printf("[update_subnet_cli_addr] 无法获取到当前可用的客户端IP, err:%v", err)
+		global.Log.Errorf("[update_subnet_cli_addr] 无法获取到当前可用的客户端IP, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法获取到当前可用的客户端IP, err:%v", err),
@@ -1282,7 +1378,7 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 	err = clientConfig.UpdateCliConfig(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[update_cli_addr] 在数据库中修改客户端IP地址失败, err:%v", err)
+		global.Log.Errorf("[update_cli_addr] 在数据库中修改客户端IP地址失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("在数据库中修改客户端IP地址失败, err:%v", err),
@@ -1312,7 +1408,7 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 	err = global.WriteToFile(changClientFile, changClientAddr)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[update_cli_addr] 在文件中修改客户端IP地址失败, err:%v", err)
+		global.Log.Errorf("[update_cli_addr] 在文件中修改客户端IP地址失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("在文件中修改客户端IP地址失败, err:%v", err),
@@ -1336,20 +1432,20 @@ func UpdateCliAddr(w http.ResponseWriter, r *http.Request) {
 func UpdateCliMap(w http.ResponseWriter, r *http.Request) {
 
 	XUserID := r.Header.Get("X-User-ID")
-	log.Println("[update_cli_map] userID:", XUserID)
+	global.Log.Debugln("[update_cli_map] userID:", XUserID)
 
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		log.Printf("[update_cli_map] Error parsing IP address code %d", http.StatusInternalServerError)
+		global.Log.Errorf("[update_cli_map] 解析 IP 地址代码时出错 %d", http.StatusInternalServerError)
 		return
 	}
-	log.Printf("[update_cli_map] client [%s:%s]", ip, port)
+	global.Log.Debugf("[update_cli_map] client [%s:%s]", ip, port)
 	// 确保请求方法是POST
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		// 如果参数为空，返回 JSON 错误响应
-		log.Println("[update_cli_map] 请求类型不是Post")
+		global.Log.Errorln("[update_cli_map] 请求类型不是Post")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
@@ -1367,7 +1463,7 @@ func UpdateCliMap(w http.ResponseWriter, r *http.Request) {
 	// 使用封装的parseJSONBody函数解析请求体
 	if err := parseJSONBody(r, &postClientAddressMapping); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		log.Printf("[update_cli_map] 解析JSON请求参数错误, err:%v", err)
+		global.Log.Errorf("[update_cli_map] 解析JSON请求参数错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
@@ -1378,11 +1474,11 @@ func UpdateCliMap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("[update_cli_map] json:[%+v]", postClientAddressMapping)
+	global.Log.Debugf("[update_cli_map] json:[%+v]", postClientAddressMapping)
 
 	if postClientAddressMapping.CliID == "" || postClientAddressMapping.CliMapping == "" || postClientAddressMapping.Address == "" {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Println("[update_cli_map] 请求参数为空")
+		global.Log.Errorln("[update_cli_map] 请求参数为空")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求参数为空",
@@ -1398,7 +1494,7 @@ func UpdateCliMap(w http.ResponseWriter, r *http.Request) {
 	err = clientConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[update_cli_map] 客户端不存在, err:%v", err)
+		global.Log.Errorf("[update_cli_map] 客户端不存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端不存在, err:%v", err),
@@ -1421,7 +1517,7 @@ func UpdateCliMap(w http.ResponseWriter, r *http.Request) {
 	cliAddress, _, err := global.ParseConfigFile(changClientFile)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[update_cli_map] 解析 %s 文件出错, err:%v", changClientFile, err)
+		global.Log.Errorf("[update_cli_map] 解析 %s 文件出错, err:%v", changClientFile, err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("解析 %s 文件出错, err:%v", changClientFile, err),
@@ -1448,7 +1544,7 @@ func UpdateCliMap(w http.ResponseWriter, r *http.Request) {
 			ip, mask, network, err := global.ParseCIDR(cidr)
 			if err != nil {
 				// 如果参数为空，返回 JSON 错误响应
-				log.Printf("[update_cli_map] 解析 %s 时出错, err:%v", cidr, err)
+				global.Log.Errorf("[update_cli_map] 解析 %s 时出错, err:%v", cidr, err)
 				responseError := ResponseError{
 					Status:  false,
 					Message: fmt.Sprintf("解析 %s 时出错, err:%v", cidr, err),
@@ -1460,7 +1556,7 @@ func UpdateCliMap(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// 输出解析结果
-			log.Printf("[update_cli_map] IP 地址: %s, 子网掩码: %s, 网络地址: %s\n", ip, mask, network)
+			global.Log.Debugf("[update_cli_map] IP 地址: %s, 子网掩码: %s, 网络地址: %s", ip, mask, network)
 			changClientAddr = fmt.Sprintf("%spush \"route %s %s %s\"\n", changClientAddr, network, mask, postClientAddressMapping.Address)
 		}
 
@@ -1468,7 +1564,7 @@ func UpdateCliMap(w http.ResponseWriter, r *http.Request) {
 		ip, mask, network, err := global.ParseCIDR(postClientAddressMapping.CliMapping)
 		if err != nil {
 			// 如果参数为空，返回 JSON 错误响应
-			log.Printf("[update_cli_map] 解析 %s 时出错, err:%v", postClientAddressMapping.CliMapping, err)
+			global.Log.Errorf("[update_cli_map] 解析 %s 时出错, err:%v", postClientAddressMapping.CliMapping, err)
 			responseError := ResponseError{
 				Status:  false,
 				Message: fmt.Sprintf("解析 %s 时出错, err:%v", postClientAddressMapping.CliMapping, err),
@@ -1480,14 +1576,14 @@ func UpdateCliMap(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// 输出解析结果
-		log.Printf("[update_cli_map] IP 地址: %s, 子网掩码: %s, 网络地址: %s\n", ip, mask, network)
+		global.Log.Debugf("[update_cli_map] IP 地址: %s, 子网掩码: %s, 网络地址: %s", ip, mask, network)
 		changClientAddr = fmt.Sprintf("%spush \"route %s %s %s\"\n", changClientAddr, network, mask, postClientAddressMapping.Address)
 	}
 
 	err = global.WriteToFile(changClientFile, changClientAddr)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[update_cli_addr] 在文件中修改客户端IP地址失败, err:%v", err)
+		global.Log.Errorf("[update_cli_addr] 在文件中修改客户端IP地址失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("在文件中修改客户端IP地址失败, err:%v", err),
@@ -1509,20 +1605,20 @@ func UpdateCliMap(w http.ResponseWriter, r *http.Request) {
 
 func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 	XUserID := r.Header.Get("X-User-ID")
-	log.Println("[update_subnet_cli_addr] userID:", XUserID)
+	global.Log.Debugf("[update_subnet_cli_addr] userID:", XUserID)
 
 	addr := r.RemoteAddr
 	ip, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		log.Printf("[update_subnet_cli_addr] Error parsing IP address code %d", http.StatusInternalServerError)
+		global.Log.Errorf("[update_subnet_cli_addr] 解析 IP 地址代码时出错 %d", http.StatusInternalServerError)
 		return
 	}
-	log.Printf("[update_subnet_cli_addr] client [%s:%s]", ip, port)
+	global.Log.Debugf("[update_subnet_cli_addr] client [%s:%s]", ip, port)
 	// 确保请求方法是POST
 	if r.Method != http.MethodPost {
 		http.Error(w, "Only POST method is allowed", http.StatusMethodNotAllowed)
 		// 如果参数为空，返回 JSON 错误响应
-		log.Println("[update_subnet_cli_addr] 请求类型不是Post")
+		global.Log.Errorln("[update_subnet_cli_addr] 请求类型不是Post")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求类型不是Post",
@@ -1539,7 +1635,7 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 	// 使用封装的parseJSONBody函数解析请求体
 	if err := parseJSONBody(r, &portUpdateClientAddress); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
-		log.Printf("[update_subnet_cli_addr] 解析JSON请求参数错误, err:%v", err)
+		global.Log.Errorf("[update_subnet_cli_addr] 解析JSON请求参数错误, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("解析JSON请求参数错误, err:%v", err),
@@ -1550,11 +1646,11 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("[update_subnet_cli_addr] json:[%+v]", portUpdateClientAddress)
+	global.Log.Debugf("[update_subnet_cli_addr] json:[%+v]", portUpdateClientAddress)
 
 	if portUpdateClientAddress.CliID == "" || portUpdateClientAddress.SerID == "" {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Println("[update_subnet_cli_addr] 请求参数为空")
+		global.Log.Errorln("[update_subnet_cli_addr] 请求参数为空")
 		responseError := ResponseError{
 			Status:  false,
 			Message: "请求参数为空",
@@ -1566,7 +1662,19 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 查询连接状态
-	database.MonitorDatabase(global.GlobalDB)
+	global.GlobalDB, err = database.MonitorDatabase(global.GlobalDB)
+	if err != nil {
+		global.Log.Errorf("[update_subnet_cli_addr] 数据库连接失败, err:%v", err)
+		// 如果参数为空，返回 JSON 错误响应
+		responseError := ResponseError{
+			Status:  false,
+			Message: fmt.Sprintf("数据库连接失败, err:%v", err),
+			Error:   0001,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(responseError)
+		return
+	}
 
 	// 创建数据库对象
 	subnet := database.Subnet{}
@@ -1580,7 +1688,7 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 	err = subnet.GetSubnetBySerId(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[update_subnet_cli_addr] 子网不存在, err:%v", err)
+		global.Log.Errorf("[update_subnet_cli_addr] 子网不存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("子网不存在, err:%v", err),
@@ -1596,7 +1704,7 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 	err = cliConfig.GetCliConfigByCliID(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[update_subnet_cli_addr] 客户端不存在, err:%v", err)
+		global.Log.Errorf("[update_subnet_cli_addr] 客户端不存在, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("客户端不存在, err:%v", err),
@@ -1614,7 +1722,7 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 
 	cliAddress, err := FindUnusedIP(global.GlobalOpenVPNPath.CcdPath, ipPrefix)
 	if err != nil {
-		log.Printf("[update_subnet_cli_addr] 无法获取到当前可用的客户端IP, err:%v", err)
+		global.Log.Errorf("[update_subnet_cli_addr] 无法获取到当前可用的客户端IP, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("无法获取到当前可用的客户端IP, err:%v", err),
@@ -1630,7 +1738,7 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 	err = cliConfig.UpdateCliConfig(global.GlobalDB)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[update_subnet_cli_addr] 在数据库中修改客户端IP地址失败, err:%v", err)
+		global.Log.Errorf("[update_subnet_cli_addr] 在数据库中修改客户端IP地址失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("在数据库中修改客户端IP地址失败, err:%v", err),
@@ -1660,7 +1768,7 @@ func UpdataSubnetCliAddr(w http.ResponseWriter, r *http.Request) {
 	err = global.WriteToFile(changClientFile, changClientAddr)
 	if err != nil {
 		// 如果参数为空，返回 JSON 错误响应
-		log.Printf("[update_subnet_cli_addr] 在文件中修改客户端IP地址失败, err:%v", err)
+		global.Log.Errorf("[update_subnet_cli_addr] 在文件中修改客户端IP地址失败, err:%v", err)
 		responseError := ResponseError{
 			Status:  false,
 			Message: fmt.Sprintf("在文件中修改客户端IP地址失败, err:%v", err),

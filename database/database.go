@@ -3,18 +3,16 @@ package database
 import (
 	"database/sql"
 	"jwireguard/global"
-	"log"
 	"time"
 
-	_ "github.com/glebarez/sqlite"
-	// _ "github.com/go-sql-driver/mysql" // 导入 MySQL 驱动
+	_ "github.com/go-sql-driver/mysql" // 导入 MySQL 驱动
 )
 
 // ----------------------------------------------------------------------------------------------------------
 // 初始化SQLite3 数据库
 // ----------------------------------------------------------------------------------------------------------
 func InitDB(filepath string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", filepath)
+	db, err := sql.Open("mysql", filepath)
 	if err != nil {
 		return nil, err
 	}
@@ -27,18 +25,17 @@ func InitDB(filepath string) (*sql.DB, error) {
 }
 
 // 定期检查数据库连接的状态
-func MonitorDatabase(db *sql.DB) {
-	err := db.Ping()
-	// log.Printf("[MonitorDatabase] 数据库状态%v", err)
-	if err != nil {
-		var errOpen error
-		db, errOpen = InitDB(global.GlobalJWireGuardini.DataBasePath) // 尝试重新打开数据库
+func MonitorDatabase(db *sql.DB) (*sql.DB, error) {
+	if err := db.Ping(); err != nil {
+		newDB, errOpen := InitDB(global.GlobalJWireGuardini.DataBasePath)
 		if errOpen != nil {
-			log.Println("[MonitorDatabase] 数据库打开失败:", errOpen)
-		} else {
-			log.Println("[MonitorDatabase] 数据库重新连接.")
+			global.Log.Errorln("[MonitorDatabase] 数据库打开失败:", errOpen)
+			return db, errOpen
 		}
+		global.Log.Debugln("[MonitorDatabase] 数据库重新连接.")
+		return newDB, nil
 	}
+	return db, nil
 }
 
 // nullStringToString 将 sql.NullString 转换为 string，处理 NULL 值

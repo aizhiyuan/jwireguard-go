@@ -47,7 +47,7 @@ func StartServer(port string, tlsPort string, certfile string, keyfile string) {
 	// 如果提供了 HTTPS 证书，则启动 HTTPS 协程
 	if certfile != "" && keyfile != "" {
 		go func() {
-			log.Println("启动 HTTPS 服务，监听端口：", tlsPort)
+			global.Log.Infoln("启动 HTTPS 服务，监听端口：", tlsPort)
 			err := http.ListenAndServeTLS(tlsPort, certfile, keyfile, nil)
 			if err != nil {
 				log.Fatalf("HTTPS 启动失败: %v", err)
@@ -56,7 +56,7 @@ func StartServer(port string, tlsPort string, certfile string, keyfile string) {
 	}
 
 	// 启动 HTTP 服务
-	log.Println("启动 HTTP 服务，监听端口：", port)
+	global.Log.Infoln("启动 HTTP 服务，监听端口：", port)
 	err := http.ListenAndServe(port, nil)
 	if err != nil {
 		log.Fatalf("HTTP 启动失败: %v", err)
@@ -122,7 +122,6 @@ func FindUnusedIP(ccdDir string, ipPrefix string) (string, error) {
 
 						}
 					}
-
 				}
 			}
 
@@ -141,7 +140,7 @@ func FindUnusedIP(ccdDir string, ipPrefix string) (string, error) {
 	for i := 1; i <= 254; i++ {
 		ip := fmt.Sprintf("%s.%d", ipPrefix, i)
 		useIPStatus := usedIPs[ip]
-		log.Printf("[判断状态] 当前IP:%s 当前状态:%v", ip, useIPStatus)
+		global.Log.Debugf("[判断状态] 当前IP:%s 当前状态:%v", ip, useIPStatus)
 		if !useIPStatus {
 			return ip, nil
 		}
@@ -166,8 +165,7 @@ func SplitIP(ip string) (string, string) {
 }
 
 // 创建新 session
-func createSession(userID string, ExpirySeconds int64) string {
-
+func createSession(userID string, ExpirySeconds int32) string {
 	sessionID := strings.ReplaceAll(uuid.New().String(), "-", "")
 	expiresAt := time.Now().Add(time.Duration(ExpirySeconds) * time.Second).Unix()
 
@@ -179,7 +177,7 @@ func createSession(userID string, ExpirySeconds int64) string {
 	dbuser.UserID.String = userID
 	dbuser.SessionID.String = sessionID
 	dbuser.ExpiresAt.Int64 = expiresAt
-	dbuser.ExpirySeconds.Int64 = ExpirySeconds
+	dbuser.ExpirySeconds.Int32 = ExpirySeconds
 
 	err := dbuser.UpdateUsers(global.GlobalDB)
 	if err != nil {
@@ -191,7 +189,7 @@ func createSession(userID string, ExpirySeconds int64) string {
 
 // 验证 session
 func validateSession(sessionID string) (string, bool) {
-	log.Printf("[Session] 开始验证 SessionID: %s", sessionID)
+	global.Log.Debugf("[Session] 开始验证 SessionID: %s", sessionID)
 
 	// 创建数据库对象
 	dbuser := database.User{}
@@ -200,18 +198,17 @@ func validateSession(sessionID string) (string, bool) {
 	dbuser.SessionID.String = sessionID
 	err := dbuser.GetUserBySessionID(global.GlobalDB)
 	if err != nil {
-		log.Printf("[Session] SessionID: %s 对应着用于不存在", sessionID)
+		global.Log.Errorf("[Session] SessionID: %s 用户不存在", sessionID)
 		return "", false
 	}
 
 	// 更新过期时间
-	newExpire := time.Now().Unix()
-	if dbuser.ExpiresAt.Int64 < newExpire {
-		log.Printf("[Session] SessionID: %s UserID: %s 已过期", sessionID, dbuser.UserID.String)
+	if dbuser.ExpiresAt.Int64 < time.Now().Unix() {
+		global.Log.Errorf("[Session] SessionID: %s UserID: %s 已过期", sessionID, dbuser.UserID.String)
 		return dbuser.UserID.String, false
 	}
 
-	log.Printf("[Session] SessionID: %s UserID: %s 未过期", sessionID, dbuser.UserID.String)
+	global.Log.Debugf("[Session] SessionID: %s UserID: %s 未过期", sessionID, dbuser.UserID.String)
 
 	return dbuser.UserID.String, true
 }
@@ -225,7 +222,7 @@ func deleteSession(sessionID string) bool {
 	dbuser.SessionID.String = sessionID
 	err := dbuser.GetUserBySessionID(global.GlobalDB)
 	if err != nil {
-		log.Printf("[Session] SessionID: %s 用户不存在", sessionID)
+		global.Log.Errorf("[Session] SessionID: %s 用户不存在", sessionID)
 		return false
 	}
 
@@ -233,14 +230,14 @@ func deleteSession(sessionID string) bool {
 	dbuser.ExpiresAt.Int64 = time.Now().Unix()
 	err = dbuser.UpdateUsers(global.GlobalDB)
 	if err != nil {
-		log.Printf("[Session] SessionID: %s 删除失败", sessionID)
+		global.Log.Errorf("[Session] SessionID: %s 删除失败", sessionID)
 		return false
 	}
-	log.Printf("[Session] SessionID: %s 已删除", sessionID)
+	global.Log.Debugf("[Session] SessionID: %s 已删除", sessionID)
 	return true
 }
 
-// session 验证中间件// session 验证中间件
+// session 验证中间件
 func ValidateSessionMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// 从 header 或 cookie 中获取 sessionID
@@ -263,19 +260,18 @@ func ValidateSessionMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			// w.Header().Set("Content-Type", "application/json")
 			// w.WriteHeader(http.StatusUnauthorized)
 			// json.NewEncoder(w).Encode(responseError)
-
+			global.Log.Debugf("[Session] 未提供SessionID使用默认用户user")
 			// 将 userID 放入请求头中
 			r.Header.Set("X-User-ID", "ee11cbb19052e40b07aac0ca060c23ee")
 			// 继续处理请求
 			next.ServeHTTP(w, r)
-
 			return
 		}
 
 		// 验证 session
 		userID, valid := validateSession(sessionID)
-		if !valid {
-			log.Printf("[Session] SessionID: %s 无效或过期", sessionID)
+		if !valid || userID == "" {
+			global.Log.Errorf("[Session] SessionID: %s 无效或过期", sessionID)
 			responseError := ResponseError{
 				Status:  false,
 				Message: "无效或过期的 session",
@@ -293,5 +289,4 @@ func ValidateSessionMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// 继续处理请求
 		next.ServeHTTP(w, r)
 	}
-
 }
